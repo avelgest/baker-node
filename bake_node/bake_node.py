@@ -1,0 +1,355 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+from __future__ import annotations
+
+import contextlib
+import random
+
+from typing import Optional, List
+
+import bpy
+
+from bpy.props import (BoolProperty,
+                       EnumProperty,
+                       IntProperty,
+                       PointerProperty,
+                       StringProperty)
+
+from . import bake_queue
+from . import internal_tree
+
+from .baking import perform_bake_node_bake
+from .preferences import get_prefs
+
+
+class BakeNode(bpy.types.ShaderNodeCustomGroup):
+    bl_idname = "ShaderNodeBknBakeNode"
+    bl_label = "Bake Node"
+
+    identifier: StringProperty(
+        name="Identifier",
+        description="A unique identifier for this BakeNode instance"
+    )
+
+    bake_state: EnumProperty(
+        name="Bake State",
+        description="",  # TODO
+        items=(('BAKED', "Baked", ""),
+               ('FREE', "Nodes", "")),
+        default='FREE',
+    )
+
+    # TODO If color attributes are not supported then only allow images
+    target_type: EnumProperty(
+        name="Bake Mode",
+        description="",  # TODO
+        items=(('IMAGE_TEXTURES', "Image", ""),
+               ('VERTEX_COLORS', "Color Attribute", "")),
+        default='IMAGE_TEXTURES',
+        update=lambda self, _: self._rebuild_node_tree()
+    )
+
+    input_type: EnumProperty(
+        name="Input Type",
+        description="",  # TODO
+        items=(('COLOR', "Color", ""),
+               ('SEPARATE_RGB', "Separate RGB", "")),
+        update=lambda self, _: self._rebuild_node_tree()
+    )
+
+    bake_in_progress: BoolProperty(
+        name="Bake Finished",
+        description="True if this node has a pending or active bake job",
+        default=False
+    )
+
+    # last_hash: StringProperty(
+    #     name="Last Input Hash",
+    #     description="The hash of the input sockets when this node was "
+    #                 "last baked.",
+    #     default=""
+    # )
+
+    target_attribute: StringProperty(
+        name="Target Attribute",
+        description="The color attribute to bake to",
+        update=lambda self, _: self._refresh_targets()
+    )
+
+    target_image: PointerProperty(
+        type=bpy.types.Image,
+        name="Target Image",
+        description="The image to bake to",
+        update=lambda self, _: self._refresh_targets()
+    )
+
+    specific_bake_object: PointerProperty(
+        type=bpy.types.Object,
+        name="Object",
+        description="The object to use when baking. If blank then the "
+                    "currently active object is used"
+    )
+
+    # samples defaults to get_prefs().default_samples
+    samples: IntProperty(
+        name="Bake Samples",
+        description="The number of samples to use for baking",
+        min=1, soft_max=1024
+    )
+
+    sync: BoolProperty(
+        name="Sync Bake Nodes",
+        description="#TODO",
+        default=False
+    )
+
+    uv_map: StringProperty(
+        name="UV Map",
+        description="The UV map of the target image",
+        update=lambda self, _: self._refresh_uv_map()
+    )
+
+    @classmethod
+    def poll(cls, node_tree):
+        return node_tree.type == 'SHADER'
+
+    @classmethod
+    def _create_identifier(cls, node_tree) -> str:
+        """Creates a unique identifier for this node."""
+        existing = (set(getattr(x, "identifier", "") for x in node_tree.nodes)
+                    if node_tree is not None else tuple())
+        while True:
+            identifier = f"{random.randint(1, 2**32):08x}"
+            if identifier not in existing:
+                return identifier
+
+    def init(self, context):
+        node_tree = self.id_data
+        if node_tree is None and context.space_data is not None:
+            node_tree = context.space_data.edit_tree
+
+        self.identifier = self._create_identifier(node_tree=node_tree)
+        self.bake_state = 'FREE'
+        self.bake_in_progress = False
+        self.samples = get_prefs().default_samples
+        self.width = 210
+
+        self.node_tree = internal_tree.create_node_tree_for(self)
+
+    def copy(self, node):
+        self.identifier = self._create_identifier(node_tree=node.id_data)
+
+        self.bake_in_progress = False
+        self.bake_state = 'FREE'
+        self.target_image = None
+        self.target_attribute = ""
+
+    def free(self):
+        if self.node_tree is not None:
+            bpy.data.node_groups.remove(self.node_tree)
+
+    def draw_buttons(self, context, layout):
+        prefs = get_prefs()
+        row = layout.row(align=True)
+
+        if not self.bake_in_progress:
+            if self.is_baked:
+                row.operator("node.bkn_unbake_button",
+                             text="Free Bake",
+                             depress=True
+                             ).identifier = self.identifier
+            else:
+                row.operator("node.bkn_bake_button",
+                             text="Bake",
+                             depress=False
+                             ).identifier = self.identifier
+        elif bake_queue.is_bake_job_active(self):
+            # Bake has started
+            row.template_running_jobs()
+        else:
+            # Bake is scheduled but not started
+            row.operator("node.bkn_cancel_button").identifier = self.identifier
+
+        layout.prop(self, "input_type", text="Input")
+        if prefs.supports_color_attributes:
+            layout.prop(self, "target_type", text="")
+
+        mesh = context.object.data
+
+        row = layout.row(align=True)
+        if self.target_type == 'IMAGE_TEXTURES':
+            row.template_ID(self,
+                            "target_image",
+                            new="image.new",
+                            open="image.open")
+
+            # UV map
+            if hasattr(mesh, "uv_layers"):
+                layout.prop_search(self, "uv_map",
+                                   mesh, "uv_layers",
+                                   results_are_suggestions=True)
+            else:
+                layout.prop(self, "uv_map", icon="DOT")
+        else:
+            if hasattr(mesh, "color_attributes"):
+                layout.prop_search(self, "target_attribute",
+                                   mesh, "color_attributes",
+                                   text="", results_are_suggestions=True)
+            else:
+                layout.prop(self, "target_attribute", text="", icon="DOT")
+
+        layout.prop(self, "sync")
+
+    def draw_buttons_ext(self, context, layout):
+        """Draw node buttons in sidebar"""
+        layout.prop(self, "samples")
+
+        self.draw_buttons(context, layout)
+
+    def insert_link(self, link):
+        pass
+
+    def update(self):
+        pass
+
+    def _rebuild_node_tree(self) -> None:
+        internal_tree.rebuild_node_tree(self)
+
+    def _refresh_targets(self) -> None:
+        internal_tree.refresh_targets(self)
+
+    def _refresh_uv_map(self) -> None:
+        internal_tree.refresh_uv_map(self)
+
+    def schedule_bake(self) -> None:
+        if (self.bake_state == 'BAKED'
+                or self.bake_target is None
+                or self.bake_in_progress):
+            return
+
+        self.bake_in_progress = True
+        bake_queue.add_bake_job(self)
+
+        self._update_synced_nodes()
+
+    def perform_bake(self,
+                     obj: Optional[bpy.types.Object] = None,
+                     immediate: bool = False) -> None:
+        self.bake_state = 'BAKED'
+        self.bake_in_progress = True
+
+        try:
+            perform_bake_node_bake(self, obj, immediate)
+        except Exception as e:
+            self.on_bake_cancel()
+            raise e
+
+        if immediate or not get_prefs().supports_background_baking:
+            self.on_bake_complete()
+
+    def on_bake_complete(self) -> None:
+        """Called when the bake has been completed."""
+        if not self.bake_in_progress:
+            return
+
+        self.bake_in_progress = False
+
+    def on_bake_cancel(self) -> None:
+        """Called if the bake is cancelled."""
+        if not self.bake_in_progress:
+            return
+
+        self.bake_in_progress = False
+
+        with self.prevent_sync():
+            self.bake_state = 'FREE'
+
+    def cancel_bake(self) -> None:
+        bake_queue.cancel_bake_jobs(self)
+
+    def free_bake(self) -> None:
+        if self.bake_state != 'FREE':
+            with self.prevent_sync():
+                self.bake_state = 'FREE'
+                internal_tree.relink_node_tree(self)
+        self._update_synced_nodes()
+
+    def _update_synced_nodes(self) -> None:
+        if not self.sync:
+            return
+
+        # Change the bake_state of all synced nodes
+        for node in self._find_synced_nodes():
+            if node.bake_state != self.bake_state and not node.mute:
+                with node.prevent_sync():
+                    if self.bake_state == 'BAKED':
+                        node.schedule_bake()
+                    else:
+                        node.free_bake()
+
+    def _find_synced_nodes(self) -> List[BakeNode]:
+        """Returns a list of all nodes that this node is synced with."""
+        if not self.sync:
+            return []
+        return [x for x in self.id_data.nodes
+                if isinstance(x, BakeNode)
+                and x.sync
+                and x.identifier != self.identifier]
+
+    @contextlib.contextmanager
+    def prevent_sync(self):
+        """Context manager that prevents this node from affecting the
+        bake_state of nodes that it is synced with.
+        """
+        old_sync_val = self.sync
+        try:
+            self.sync = False
+            yield
+        finally:
+            self.sync = old_sync_val
+
+    @property
+    def bake_object(self) -> Optional[BakeNode]:
+        """The object that should be active when this node is baked."""
+        if self.specific_bake_object is not None:
+            return self.specific_bake_object
+        return bpy.context.active_object
+
+    @property
+    def bake_target(self) -> Optional:
+        if self.target_type == 'IMAGE_TEXTURES':
+            return self.target_image
+        if self.target_type == 'VERTEX_COLORS':
+            return self.target_attribute
+        raise RuntimeError(f"Unsupported target type: f{self.target_type}")
+
+    @property
+    def is_baked(self) -> bool:
+        return self.bake_state == 'BAKED'
+
+    @property
+    def node_tree_name(self) -> str:
+        """The name that this node's nodegroup is expected to have."""
+        return f".bake node {self.identifier}"
+
+
+def add_bkn_node_menu_func(self, context):
+    """Button to add a new bake node. Appended to the Output category
+    of the Add menu in the Shader Editor.
+    """
+    # Only show in object shader node trees
+    if getattr(context.space_data, "shader_type", None) == 'OBJECT':
+        op_props = self.layout.operator("node.add_node",
+                                        text="Bake Node")
+        op_props.type = BakeNode.bl_idname
+        op_props.use_transform = True
+
+
+def register():
+    bpy.utils.register_class(BakeNode)
+    bpy.types.NODE_MT_category_SH_NEW_OUTPUT.append(add_bkn_node_menu_func)
+
+
+def unregister():
+    bpy.types.NODE_MT_category_SH_NEW_OUTPUT.remove(add_bkn_node_menu_func)
+    bpy.utils.unregister_class(BakeNode)
