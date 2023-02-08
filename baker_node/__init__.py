@@ -9,6 +9,7 @@ else:
 submodule_names = [
     "preferences",
     "baker_node",
+    "node_hasher",
     "bake_queue",
     "internal_tree",
     "baking",
