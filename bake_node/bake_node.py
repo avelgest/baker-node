@@ -308,12 +308,43 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         finally:
             self.sync = old_sync_val
 
+    def _get_active_inputs(self) -> List[bpy.types.NodeSocket]:
+        """Returns a list of the inputs that will be used in baking."""
+        if self.input_type == 'COLOR':
+            active = [self.inputs.get("Color")]
+        elif self.input_type == 'SEPARATE_RGB':
+            active = [self.inputs.get("R"),
+                      self.inputs.get("G"),
+                      self.inputs.get("B")]
+        if not all(active):
+            active = list(filter(None, active))
+        return active
+
+    def _guess_should_bake_float(self) -> bool:
+        """Returns whether this node should use a float target."""
+        for x in self._get_active_inputs():
+            if not x.linked:
+                continue
+            linked_soc = x.links[0].from_socket
+            if not (linked_soc.name.lower() == "fac"
+                    or linked_soc.type == 'RGBA'
+                    or getattr(linked_soc.node, "use_clamp", False)):
+                return True
+        return False
+
     @property
     def bake_object(self) -> Optional[BakeNode]:
         """The object that should be active when this node is baked."""
         if self.specific_bake_object is not None:
             return self.specific_bake_object
-        return bpy.context.active_object
+
+        active = bpy.context.active_object
+        if active is not None and active.type == 'MESH':
+            return bpy.context.active_object
+        if bpy.context.selected_objects:
+            return next((x for x in bpy.context.selected_objects
+                         if x.type == 'MESH'), None)
+        return None
 
     @property
     def bake_target(self) -> Optional:
