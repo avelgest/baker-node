@@ -58,6 +58,9 @@ class TestBakeNode(unittest.TestCase):
 
         get_bake_queue().clear()
 
+    def tearDown(self):
+        self.node_tree.nodes.clear()
+
     @staticmethod
     def _get_pixels_rgb(img):
         """Returns only the RGB (not alpha) pixel values of an image
@@ -120,9 +123,6 @@ class TestBakeNode(unittest.TestCase):
         self.assertNotEqual(bake_node.identifier, bake_node_1.identifier)
         self.assertIsNot(bake_node.node_tree, bake_node_1.node_tree)
 
-        self.node_tree.nodes.remove(bake_node)
-        self.node_tree.nodes.remove(bake_node_1)
-
     def test_2_1_clean_up(self):
         bake_node = self._new_bake_node("clean_up_test")
 
@@ -148,8 +148,6 @@ class TestBakeNode(unittest.TestCase):
         self.assertEqual(len(active_inputs), 3)
         for x in active_inputs:
             self.assertEqual(x.type, 'VALUE')
-
-        self.node_tree.nodes.remove(bake_node)
 
     # def test_2_3_duplicate(self):
         # bake_node = self._new_bake_node("duplicate_test", self.img_target)
@@ -192,8 +190,6 @@ class TestBakeNode(unittest.TestCase):
         self.assertFalse(bake_node.bake_in_progress)
 
         bake_node.target_image = None
-        self.node_tree.nodes.remove(bake_node)
-        self.node_tree.nodes.remove(value_node)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_3_2_attr_bake(self):
@@ -229,9 +225,6 @@ class TestBakeNode(unittest.TestCase):
 
         self.assertEqual(bake_node.bake_state, 'FREE')
         self.assertFalse(bake_node.bake_in_progress)
-
-        self.node_tree.nodes.remove(bake_node)
-        self.node_tree.nodes.remove(value_node)
 
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
@@ -270,6 +263,3 @@ class TestBakeNode(unittest.TestCase):
         self.assertEqual(bake_node_2.bake_state, "FREE")
         self.assertFalse(bake_node_1.bake_in_progress)
         self.assertFalse(bake_node_2.bake_in_progress)
-
-        for bake_node in (bake_node_1, bake_node_2, bake_node_3):
-            self.node_tree.nodes.remove(bake_node)
