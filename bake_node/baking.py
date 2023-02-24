@@ -153,7 +153,7 @@ class _BakeNodeBaker:
 
             bpy.ops.object.bake(exec_ctx,
                                 type='EMIT',
-                                save_mode='INTERNAL')
+                                uv_layer=self._uv_layer)
 
             if exec_ctx == 'INVOKE_DEFAULT':
                 delayed_stack = exit_stack.pop_all()
@@ -198,6 +198,15 @@ class _BakeNodeBaker:
     @property
     def _bake_type(self) -> str:
         return self.bake_node.target_type
+
+    @property
+    def _uv_layer(self) -> str:
+        """The UV map to use for baking."""
+        uv_map = self.bake_node.uv_map
+        if (uv_map not in self._object.data.uv_layers
+                or not self._bake_type == 'IMAGE_TEXTURES'):
+            return ""
+        return uv_map
 
 
 def perform_bake_node_bake(bake_node, obj=None, immediate=False):
