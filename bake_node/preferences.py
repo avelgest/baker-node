@@ -14,12 +14,12 @@ _supports_color_attributes = ("color_attributes"
 class BakeNodePrefs(bpy.types.AddonPreferences):
     bl_idname = package_name
 
-    # auto_create_targets: BoolProperty(
-    #     name="Create Missing Targets",
-    #     description="Automatically add a new image or vertex attribute "
-    #                 "when baking a node without a target set"
-    #     default=True
-    # )
+    auto_create_targets: BoolProperty(
+        name="Create Missing Targets",
+        description="Automatically add a new image or vertex attribute "
+                    "when baking a node without a target set",
+        default=True
+    )
 
     background_baking: BoolProperty(
         name="Bake in Background",
@@ -37,6 +37,7 @@ class BakeNodePrefs(bpy.types.AddonPreferences):
 
     def draw(self, context, layout):
         layout.prop(self, "background_baking")
+        layout.prop(self, "auto_create_targets")
         layout.prop(self, "default_samples")
 
     def _background_baking_update(self):

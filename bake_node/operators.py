@@ -10,6 +10,7 @@ from bpy.props import StringProperty
 from bpy.types import Operator
 
 from .bake_node import BakeNode
+from .preferences import get_prefs
 
 
 def _bake_node_active(context) -> bool:
@@ -82,9 +83,11 @@ class BKN_OT_bake_button(BakeNodeButtonBase, Operator):
         bake_node = self.get_bake_node(context)
         if bake_node is None:
             return {'CANCELLED'}
-        if bake_node.bake_target is None:
+        if (bake_node.bake_target is None
+                and not get_prefs().auto_create_targets):
             self.report({'WARNING'}, "No baking target set")
             return {'CANCELLED'}
+
         bake_node.schedule_bake()
         return {'FINISHED'}
 

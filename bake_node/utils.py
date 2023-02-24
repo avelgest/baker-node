@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import importlib
+import itertools as it
 import types
+import typing
 import sys
 
 from typing import Any, Callable, Collection, List, Optional
@@ -111,6 +113,36 @@ def import_all(module_names: Collection[str],
         imported.append(module)
 
     return imported
+
+
+def settings_from_image(image: bpy.types.Image) -> typing.Dict[str, Any]:
+    """Returns a dict that can be passed as kwargs to bpy.data.images.new
+    to create a new image with the same settings as image.
+    """
+    return {
+        "width": image.size[0],
+        "height": image.size[1],
+        "alpha": image.alpha_mode != 'NONE',
+        "float_buffer": image.is_float,
+        "is_data": image.colorspace_settings.is_data,
+        "tiled": image.source == 'TILED'
+    }
+
+
+def suffix_num_unique_in(basename: str,
+                         container: typing.Container,
+                         suffix_len: int = 2) -> str:
+    """Incrementally suffix a number to basename so that it is unique
+    in container.
+    """
+    if basename not in container:
+        return basename
+
+    suffix_num = it.count(1)
+    while True:
+        name = f"{basename}.{next(suffix_num):0{suffix_len}}"
+        if name not in container:
+            return name
 
 
 class TempChanges:

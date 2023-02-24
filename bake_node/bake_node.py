@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import random
+import typing
 
 from typing import Optional, List
 
@@ -17,9 +18,13 @@ from bpy.props import (BoolProperty,
 
 from . import bake_queue
 from . import internal_tree
+from . import utils
 
 from .baking import perform_bake_node_bake
 from .preferences import get_prefs
+
+
+BakeTarget = typing.Union[bpy.types.Image, bpy.types.Attribute]
 
 
 class BakeNode(bpy.types.ShaderNodeCustomGroup):
@@ -216,10 +221,14 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         internal_tree.refresh_uv_map(self)
 
     def schedule_bake(self) -> None:
-        if (self.bake_state == 'BAKED'
-                or self.bake_target is None
-                or self.bake_in_progress):
+        if self.bake_state == 'BAKED' or self.bake_in_progress:
             return
+
+        if self.bake_target is None:
+            if get_prefs().auto_create_targets:
+                self.auto_create_target()
+            if self.bake_target is None:
+                return
 
         self.bake_in_progress = True
         bake_queue.add_bake_job(self)
@@ -290,6 +299,52 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
                 and x.sync
                 and x.identifier != self.identifier]
 
+    def auto_create_target(self) -> None:
+        """Creates and sets an appropriate bake target for this
+        BakeNode if a target has not already been provided.
+        """
+        if self.bake_target is not None:
+            return
+
+        new_target = None
+
+        bake_nodes = [x for x in self.id_data.nodes
+                      if x.bl_idname == self.bl_idname
+                      and x.target_type == self.target_type
+                      and x.bake_target is not None]
+
+        if self.target_type == 'IMAGE_TEXTURES':
+            # Copy image settings from an existing image target
+            if bake_nodes:
+                new_target = self._new_target_from(bake_nodes[0].bake_target)
+            else:
+                # Try copying image settings from an Image Texture node
+                node_imgs = [x.image for x in self.id_data.nodes
+                             if x.bl_idname == "ShaderNodeTexImage"
+                             and x.image is not None]
+                if node_imgs:
+                    largest_img = max(node_imgs,
+                                      key=lambda x: x.size[0]*x.size[1])
+                    new_target = self._new_target_from(largest_img)
+
+        elif self.target_type == 'VERTEX_COLORS':
+            basename = f"{self.label or self.name} Target"
+            existing_attrs = {x.target_attribute for x in bake_nodes}
+            new_target = utils.suffix_num_unique_in(basename, existing_attrs)
+
+        self.bake_target = new_target
+
+    def _new_target_from(self, bake_target) -> Optional:
+        use_float = self._guess_should_bake_float()
+        name = f"{self.label or self.name} Target"
+        if isinstance(bake_target, bpy.types.Image):
+            kwargs = utils.settings_from_image(bake_target)
+            if use_float:
+                kwargs["float_buffer"] = True
+            return bpy.data.images.new(name, **kwargs)
+        # TODO Support color attribute targets
+        return None
+
     @contextlib.contextmanager
     def prevent_sync(self):
         """Context manager that prevents this node from affecting the
@@ -341,12 +396,19 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         return None
 
     @property
-    def bake_target(self) -> Optional:
+    def bake_target(self) -> Optional[BakeTarget]:
         if self.target_type == 'IMAGE_TEXTURES':
             return self.target_image
         if self.target_type == 'VERTEX_COLORS':
             return self.target_attribute
         raise RuntimeError(f"Unsupported target type: f{self.target_type}")
+
+    @bake_target.setter
+    def bake_target(self, value: Optional[BakeTarget]) -> None:
+        if self.target_type == 'IMAGE_TEXTURES':
+            self.target_image = value
+        if self.target_type == 'VERTEX_COLORS':
+            self.target_attribute = value if value is not None else ""
 
     @property
     def is_baked(self) -> bool:

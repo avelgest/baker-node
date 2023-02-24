@@ -87,7 +87,15 @@ class _BakeNodeBaker:
 
             mesh_name = mesh.name
 
-            target = mesh.color_attributes.get(self.bake_node.target_attribute)
+            target_name = self.bake_node.target_attribute
+            target = mesh.color_attributes.get(target_name)
+
+            if target is None:
+                # Create the missing color attribute
+                # TODO get type/domain from bake_node
+                target = mesh.color_attributes.new(target_name, 'FLOAT_COLOR',
+                                                   'CORNER')
+
             old_active = mesh.color_attributes.active_color
             old_active_name = old_active.name if old_active else ""
 
