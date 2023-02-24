@@ -63,13 +63,6 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         default=False
     )
 
-    # last_hash: StringProperty(
-    #     name="Last Input Hash",
-    #     description="The hash of the input sockets when this node was "
-    #                 "last baked.",
-    #     default=""
-    # )
-
     target_attribute: StringProperty(
         name="Target Attribute",
         description="The color attribute to bake to",
@@ -138,6 +131,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
 
     def copy(self, node):
         self.identifier = self._create_identifier(node_tree=node.id_data)
+        self.node_tree = internal_tree.create_node_tree_for(self)
 
         self.bake_in_progress = False
         self.bake_state = 'FREE'
@@ -323,7 +317,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     def _guess_should_bake_float(self) -> bool:
         """Returns whether this node should use a float target."""
         for x in self._get_active_inputs():
-            if not x.linked:
+            if not x.is_linked:
                 continue
             linked_soc = x.links[0].from_socket
             if not (linked_soc.name.lower() == "fac"

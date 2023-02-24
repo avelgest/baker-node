@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from typing import Optional, Union
+from typing import Optional
 
 import bpy
 
@@ -228,7 +228,7 @@ class BakeQueue(bpy.types.PropertyGroup):
         if cls._update_function is not None:
             cls._remove_update_timer()
 
-        def update() -> Union[float, None]:
+        def update() -> Optional[float]:
             bake_queue = utils.get_bake_queue()
             if not bake_queue.jobs:
                 # Stop if queue is empty
