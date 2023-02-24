@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import contextlib
 import typing
 import unittest
 import warnings
@@ -11,6 +12,7 @@ from ..bake_node.preferences import get_prefs
 from ..bake_node.utils import get_bake_queue
 
 supports_color_attrs = get_prefs().supports_color_attributes
+supports_temp_override = hasattr(bpy.types.Context, "temp_override")
 
 
 class TestBakeNode(unittest.TestCase):
@@ -49,6 +51,8 @@ class TestBakeNode(unittest.TestCase):
         cls.attr_target_2 = mesh.attributes.new("test_attr_2", 'BYTE_COLOR',
                                                 'POINT')
 
+        print(bpy.context.screen.areas[0].ui_type or 'None')
+
     @classmethod
     def tearDownClass(cls):
         bpy.data.objects.remove(cls.obj)
@@ -60,6 +64,24 @@ class TestBakeNode(unittest.TestCase):
 
     def tearDown(self):
         self.node_tree.nodes.clear()
+
+    @contextlib.contextmanager
+    def ctx_override_shader_editor(self):
+        """Use Context.temp_override to override the area with a Shader
+        Editor set to this class's node tree.
+        """
+        area = bpy.context.screen.areas[0]
+        old_ui_type = str(area.ui_type)
+        area.ui_type = 'ShaderNodeTree'
+        area.spaces.active.node_tree = self.node_tree
+        override = bpy.context.copy()
+        override["area"] = area
+
+        try:
+            with bpy.context.temp_override(**override) as temp_override:
+                yield temp_override
+        finally:
+            area.ui_type = old_ui_type
 
     @staticmethod
     def _get_pixels_rgb(img):
@@ -149,10 +171,28 @@ class TestBakeNode(unittest.TestCase):
         for x in active_inputs:
             self.assertEqual(x.type, 'VALUE')
 
-    # def test_2_3_duplicate(self):
-        # bake_node = self._new_bake_node("duplicate_test", self.img_target)
-        # self.node_tree.nodes.active = bake_node
-        # self.node_tree
+    @unittest.skipUnless(supports_temp_override, "No context temp_override")
+    def test_2_3_duplicate(self):
+        old_node = self._new_bake_node("duplicate_test", self.img_target)
+        self.node_tree.nodes.active = old_node
+        old_node.select = True
+        old_node.bake_target = self.img_target
+
+        with self.ctx_override_shader_editor():
+            bpy.ops.node.duplicate()
+
+        self.assertEqual(len(self.node_tree.nodes), 2)
+        new_node = self.node_tree.nodes.active
+
+        self.assertNotEqual(old_node.name, new_node.name)
+        self.assertNotEqual(old_node.identifier, new_node.identifier)
+        self.assertNotEqual(old_node.node_tree.name, new_node.node_tree.name)
+        self.assertNotEqual(old_node.bake_target, new_node.bake_target)
+
+        self.assertTrue(new_node.identifier)
+        self.assertIsNotNone(new_node.node_tree)
+        self.assertFalse(new_node.is_baked)
+        self.assertFalse(new_node.bake_in_progress)
 
     def test_3_1_img_bake(self):
         # Use synchronous baking
@@ -226,6 +266,24 @@ class TestBakeNode(unittest.TestCase):
         self.assertEqual(bake_node.bake_state, 'FREE')
         self.assertFalse(bake_node.bake_in_progress)
 
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_4_1_sep_rgb(self):
+        bake_node = self._new_bake_node("sep_rgb_test")
+        bake_node.input_type = 'SEPARATE_RGB'
+
+        self._set_target(bake_node, self.attr_target_1)
+
+        bake_node.inputs["R"].default_value = 0.1
+        bake_node.inputs["G"].default_value = 0.2
+        bake_node.inputs["B"].default_value = 0.3
+
+        bake_node.perform_bake(immediate=True)
+
+        self.assertEqual(bake_node.bake_state, 'BAKED')
+        self.assertFalse(bake_node.bake_in_progress)
+
+        self._assert_color_attr_equal(self.attr_target_1, (0.1, 0.2, 0.3, 1.0))
+
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_5_1_synced_nodes(self):
@@ -263,3 +321,27 @@ class TestBakeNode(unittest.TestCase):
         self.assertEqual(bake_node_2.bake_state, "FREE")
         self.assertFalse(bake_node_1.bake_in_progress)
         self.assertFalse(bake_node_2.bake_in_progress)
+
+    def test_5_2_auto_create_target_img(self):
+        existing_img = self.img_target
+        bake_node_1 = self._new_bake_node("auto_target_test_1")
+        self._set_target(bake_node_1, existing_img)
+
+        bake_node_2 = self._new_bake_node("auto_target_test_2")
+        self.assertIsNone(bake_node_2.bake_target)
+
+        all_existing_images = [x.name for x in bpy.data.images]
+
+        bake_node_2.auto_create_target()
+        new_target = bake_node_2.bake_target
+
+        self.assertIsNotNone(new_target)
+        self.assertIsInstance(new_target, bpy.types.Image)
+        self.assertNotIn(new_target, all_existing_images)
+
+        self.assertEqual(tuple(new_target.size), tuple(existing_img.size))
+        self.assertEqual(new_target.is_float, existing_img.is_float)
+        self.assertEqual(new_target.colorspace_settings.is_data,
+                         existing_img.colorspace_settings.is_data)
+
+        bpy.data.images.remove(new_target)
