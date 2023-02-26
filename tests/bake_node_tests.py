@@ -51,8 +51,6 @@ class TestBakeNode(unittest.TestCase):
         cls.attr_target_2 = mesh.attributes.new("test_attr_2", 'BYTE_COLOR',
                                                 'POINT')
 
-        print(bpy.context.screen.areas[0].ui_type or 'None')
-
     @classmethod
     def tearDownClass(cls):
         bpy.data.objects.remove(cls.obj)
@@ -345,3 +343,19 @@ class TestBakeNode(unittest.TestCase):
                          existing_img.colorspace_settings.is_data)
 
         bpy.data.images.remove(new_target)
+
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_5_3_auto_create_target_attr(self):
+        # Setting type/domain from other color attributes is not yet
+        # supported. So just check that bake_target is set to a valid
+        # string by auto_create_target.
+
+        bake_node = self._new_bake_node("auto_target_test")
+        bake_node.target_type = 'VERTEX_COLORS'
+
+        self.assertFalse(bake_node.bake_target)
+        bake_node.auto_create_target()
+
+        new_target = bake_node.bake_target
+        self.assertIsInstance(new_target, str)
+        self.assertTrue(new_target)
