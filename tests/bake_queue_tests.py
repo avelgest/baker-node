@@ -1,6 +1,7 @@
 import unittest
 import bpy
 
+from ..bake_node import bake_queue as bake_queue_module
 from ..bake_node.bake_node import BakeNode
 from ..bake_node.bake_queue import BakeQueue
 from ..bake_node.preferences import get_prefs
@@ -89,11 +90,24 @@ class TestBakeQueue(unittest.TestCase):
         return self.node_tree.nodes[self.BAKE_NODE_NAME]
 
     def test_1_init(self):
-        self.bake_queue.ensure_initialized()
-
         self.assertFalse(self.bake_queue.jobs)
         self.assertFalse(self.bake_queue.job_in_progress)
         self.assertIsNone(self.bake_queue.active_job)
+
+    @unittest.skipUnless(supports_bg_baking, "Background baking not supported")
+    def test_1_2_handlers(self):
+        for x in ("object_bake_complete", "object_bake_cancel"):
+            bpy_handlers = getattr(bpy.app.handlers, x)
+            callback = getattr(bake_queue_module, x)
+
+            self.bake_queue.ensure_bake_handlers()
+            self.assertIn(callback, bpy_handlers)
+
+            self.bake_queue.ensure_bake_handlers()
+            self.assertEqual(bpy_handlers.count(callback), 1)
+
+            self.bake_queue.remove_bake_handlers()
+            self.assertNotIn(callback, bpy_handlers)
 
     @unittest.skipUnless(supports_bg_baking, "Background baking not supported")
     def test_2_1_add_job_async(self):

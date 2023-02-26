@@ -195,7 +195,7 @@ class BakeQueue(bpy.types.PropertyGroup):
         return utils.get_bake_queue()
 
     @classmethod
-    def add_bake_handlers(cls) -> None:
+    def ensure_bake_handlers(cls) -> None:
         """Adds the callbacks used by this class to the handler lists
         in bpy.app.handlers. Does nothing if the callbacks have already
         been added.
@@ -253,11 +253,6 @@ class BakeQueue(bpy.types.PropertyGroup):
     def unregister(cls):
         cls.remove_bake_handlers()
 
-    def _initialize(self) -> None:
-        self.add_bake_handlers()
-
-        self["is_initialized"] = True
-
     def _remove_job(self, job: BakeQueueJob) -> bool:
         for idx, x in enumerate(self.jobs):
             if x == job:
@@ -270,6 +265,8 @@ class BakeQueue(bpy.types.PropertyGroup):
         """Runs job. If the job completes synchronously or throws an
         exception then it is removed from the queue.
         """
+        self.ensure_bake_handlers()
+
         try:
             job.run()
         except BakeJobError:
@@ -283,13 +280,7 @@ class BakeQueue(bpy.types.PropertyGroup):
         if not job.in_progress:
             self.job_complete(job)
 
-    def ensure_initialized(self) -> None:
-        if not self.get("is_initialized"):
-            self._initialize()
-
     def add_job_from_bake_node(self, bake_node, immediate=False) -> None:
-        self.ensure_initialized()
-
         in_background = self.bake_in_background and not immediate
 
         job = self.jobs.add()
