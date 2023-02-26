@@ -38,7 +38,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
 
     bake_state: EnumProperty(
         name="Bake State",
-        description="",  # TODO
+        description="The current state of this node",
         items=(('BAKED', "Baked", ""),
                ('FREE', "Nodes", "")),
         default='FREE',
@@ -47,16 +47,18 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     # TODO If color attributes are not supported then only allow images
     target_type: EnumProperty(
         name="Bake Mode",
-        description="",  # TODO
-        items=(('IMAGE_TEXTURES', "Image", ""),
-               ('VERTEX_COLORS', "Color Attribute", "")),
+        description="The type of target to bake to",
+        items=(('IMAGE_TEXTURES', "Image", "Bake to an image using a UV-mapped"
+                "object"),
+               ('VERTEX_COLORS', "Color Attribute",
+                "Bake to a color attribute on a mesh")),
         default='IMAGE_TEXTURES',
         update=lambda self, _: self._rebuild_node_tree()
     )
 
     input_type: EnumProperty(
         name="Input Type",
-        description="",  # TODO
+        description="What input sockets this node should use",
         items=(('COLOR', "Color", ""),
                ('SEPARATE_RGB', "Separate RGB", "")),
         update=lambda self, _: self._rebuild_node_tree()
@@ -400,7 +402,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         if self.target_type == 'IMAGE_TEXTURES':
             return self.target_image
         if self.target_type == 'VERTEX_COLORS':
-            return self.target_attribute
+            return self.target_attribute or None
         raise RuntimeError(f"Unsupported target type: f{self.target_type}")
 
     @bake_target.setter

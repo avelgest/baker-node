@@ -219,14 +219,15 @@ class BakeQueue(bpy.types.PropertyGroup):
                 handlers.remove(func)
 
     @classmethod
-    def _add_update_timer(cls, interval=2.0) -> None:
+    def _add_update_timer(cls, interval=1.0) -> None:
         """Register a function with bpy.app.timers that attempts to
         run the next job after every interval seconds, stopping if the
-        queue is empty. If called twice this unregisters the previously
-        added function.
+        queue is empty. Does nothing if the update function is already
+        registered.
         """
-        if cls._update_function is not None:
-            cls._remove_update_timer()
+        if (cls._update_function is not None
+                and bpy.app.timers.is_registered(cls._update_function)):
+            return
 
         def update() -> Optional[float]:
             bake_queue = utils.get_bake_queue()
@@ -244,7 +245,8 @@ class BakeQueue(bpy.types.PropertyGroup):
     @classmethod
     def _remove_update_timer(cls) -> None:
         """Unregisters the function registered by _add_update_timer."""
-        bpy.app.timers.unregister(cls._update_function)
+        if bpy.app.timers.is_registered(cls._update_function):
+            bpy.app.timers.unregister(cls._update_function)
         cls._update_function = None
 
     @classmethod
