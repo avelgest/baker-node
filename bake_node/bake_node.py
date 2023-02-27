@@ -48,8 +48,8 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     target_type: EnumProperty(
         name="Bake Mode",
         description="The type of target to bake to",
-        items=(('IMAGE_TEXTURES', "Image", "Bake to an image using a UV-mapped"
-                "object"),
+        items=(('IMAGE_TEXTURES', "Image", "Bake to an image using a "
+                "UV-mapped object"),
                ('VERTEX_COLORS', "Color Attribute",
                 "Bake to a color attribute on a mesh")),
         default='IMAGE_TEXTURES',
@@ -59,8 +59,10 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     input_type: EnumProperty(
         name="Input Type",
         description="What input sockets this node should use",
-        items=(('COLOR', "Color", ""),
-               ('SEPARATE_RGB', "Separate RGB", "")),
+        items=(('COLOR', "Color",
+                "Use a single Color socket"),
+               ('SEPARATE_RGB', "Separate RGB",
+                "Use a separate scaler socket for each RGB channel")),
         update=lambda self, _: self._rebuild_node_tree()
     )
 
@@ -98,8 +100,9 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     )
 
     sync: BoolProperty(
-        name="Sync Bake Nodes",
-        description="#TODO",
+        name="Synced",
+        description="When this node is baked all other synced nodes in "
+                    "the material will also be baked",
         default=False
     )
 
@@ -154,16 +157,8 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         row = layout.row(align=True)
 
         if not self.bake_in_progress:
-            if self.is_baked:
-                row.operator("node.bkn_unbake_button",
-                             text="Free Bake",
-                             depress=True
-                             ).identifier = self.identifier
-            else:
-                row.operator("node.bkn_bake_button",
-                             text="Bake",
-                             depress=False
-                             ).identifier = self.identifier
+            row.operator("node.bkn_bake_button",
+                         text="Bake").identifier = self.identifier
         elif bake_queue.is_bake_job_active(self):
             # Bake has started
             row.template_running_jobs()
@@ -171,11 +166,15 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
             # Bake is scheduled but not started
             row.operator("node.bkn_cancel_button").identifier = self.identifier
 
-        layout.prop(self, "input_type", text="Input")
+        col = layout.column(align=True)
+        col.prop(self, "input_type", text="")
         if prefs.supports_color_attributes:
-            layout.prop(self, "target_type", text="")
+            col.prop(self, "target_type", text="")
 
-        mesh = context.object.data
+        if context.object is not None:
+            mesh = context.object.data
+        else:
+            mesh = None
 
         row = layout.row(align=True)
         if self.target_type == 'IMAGE_TEXTURES':
@@ -199,7 +198,9 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
             else:
                 layout.prop(self, "target_attribute", text="", icon="DOT")
 
-        layout.prop(self, "sync")
+        row = layout.row()
+        row.alignment = 'RIGHT'
+        row.prop(self, "sync")
 
     def draw_buttons_ext(self, context, layout):
         """Draw node buttons in sidebar"""
@@ -223,7 +224,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         internal_tree.refresh_uv_map(self)
 
     def schedule_bake(self) -> None:
-        if self.bake_state == 'BAKED' or self.bake_in_progress:
+        if self.bake_in_progress:
             return
 
         if self.bake_target is None:
@@ -285,7 +286,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
 
         # Change the bake_state of all synced nodes
         for node in self._find_synced_nodes():
-            if node.bake_state != self.bake_state and not node.mute:
+            if not node.mute:
                 with node.prevent_sync():
                     if self.bake_state == 'BAKED':
                         node.schedule_bake()

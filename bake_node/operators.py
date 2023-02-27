@@ -92,21 +92,6 @@ class BKN_OT_bake_button(BakeNodeButtonBase, Operator):
         return {'FINISHED'}
 
 
-class BKN_OT_unbake_button(BakeNodeButtonBase, Operator):
-    bl_idname = "node.bkn_unbake_button"
-    bl_label = "Free"
-    bl_description = "Free this bake node's bake"
-
-    def execute(self, context):
-        bake_node = self.get_bake_node(context)
-        if bake_node is None:
-            return {'CANCELLED'}
-        if not bake_node.is_baked:
-            return {'CANCELLED'}
-        bake_node.free_bake()
-        return {'FINISHED'}
-
-
 class BKN_OT_cancel_button(BakeNodeButtonBase, Operator):
     bl_idname = "node.bkn_cancel_button"
     bl_label = "Cancel"
@@ -170,7 +155,6 @@ class BKN_OT_unbake_nodes(Operator):
 
 
 classes = (BKN_OT_bake_button,
-           BKN_OT_unbake_button,
            BKN_OT_cancel_button)
 
 register, unregister = bpy.utils.register_classes_factory(classes)
