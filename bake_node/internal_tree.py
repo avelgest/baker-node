@@ -154,7 +154,7 @@ class _TreeBuilder:
         links.new(group_out_unbaked, unbaked_val_soc)
         links.new(nodes[NodeNames.emission_shader].inputs[0], unbaked_val_soc)
 
-        if bake_node.bake_state == 'FREE':
+        if not bake_node.is_baked:
             links.new(group_out_baked, unbaked_val_soc)
         else:
             if bake_node.target_type == 'IMAGE_TEXTURES':

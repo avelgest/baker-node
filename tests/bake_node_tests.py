@@ -134,7 +134,7 @@ class TestBakeNode(unittest.TestCase):
         self.assertTrue(bake_node.identifier)
         self.assertTrue(bake_node.node_tree)
 
-        self.assertEqual(bake_node.bake_state, 'FREE')
+        self.assertFalse(bake_node.is_baked)
 
         bake_node_1 = self._new_bake_node()
         self.assertTrue(bake_node_1.identifier)
@@ -199,7 +199,7 @@ class TestBakeNode(unittest.TestCase):
         bake_node = self._new_bake_node("img_bake_test")
         img_target = self.img_target
 
-        self.assertEqual(bake_node.bake_state, 'FREE')
+        self.assertFalse(bake_node.is_baked)
 
         bake_node.input_type = 'COLOR'
         self._set_target(bake_node, img_target)
@@ -213,7 +213,7 @@ class TestBakeNode(unittest.TestCase):
         # Since background_baking is False this should bake immediately
         bake_node.schedule_bake()
 
-        self.assertEqual(bake_node.bake_state, 'BAKED')
+        self.assertTrue(bake_node.is_baked)
         self.assertFalse(bake_node.bake_in_progress)
 
         px_color = self._get_pixels_rgb(img_target)
@@ -224,7 +224,7 @@ class TestBakeNode(unittest.TestCase):
         # Test freeing the bake
         bake_node.free_bake()
 
-        self.assertEqual(bake_node.bake_state, 'FREE')
+        self.assertFalse(bake_node.is_baked)
         self.assertFalse(bake_node.bake_in_progress)
 
         bake_node.target_image = None
@@ -253,7 +253,7 @@ class TestBakeNode(unittest.TestCase):
 
         bake_node.schedule_bake()
 
-        self.assertEqual(bake_node.bake_state, 'BAKED')
+        self.assertTrue(bake_node.is_baked)
         self.assertFalse(bake_node.bake_in_progress)
 
         self._assert_color_attr_equal(target_attr, (0.5, 0.5, 0.5, 1.0))
@@ -261,7 +261,7 @@ class TestBakeNode(unittest.TestCase):
         # Test freeing the bake
         bake_node.free_bake()
 
-        self.assertEqual(bake_node.bake_state, 'FREE')
+        self.assertFalse(bake_node.is_baked)
         self.assertFalse(bake_node.bake_in_progress)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
@@ -277,7 +277,7 @@ class TestBakeNode(unittest.TestCase):
 
         bake_node.perform_bake(immediate=True)
 
-        self.assertEqual(bake_node.bake_state, 'BAKED')
+        self.assertTrue(bake_node.is_baked)
         self.assertFalse(bake_node.bake_in_progress)
 
         self._assert_color_attr_equal(self.attr_target_1, (0.1, 0.2, 0.3, 1.0))
@@ -303,9 +303,9 @@ class TestBakeNode(unittest.TestCase):
         # This should bake both bake_node_1 and bake_node_2
         bake_node_1.schedule_bake()
 
-        self.assertEqual(bake_node_1.bake_state, 'BAKED')
-        self.assertEqual(bake_node_2.bake_state, 'BAKED')
-        self.assertEqual(bake_node_3.bake_state, 'FREE')
+        self.assertTrue(bake_node_1.is_baked)
+        self.assertTrue(bake_node_2.is_baked)
+        self.assertFalse(bake_node_3.is_baked)
 
         self._assert_color_attr_equal(self.attr_target_1, (0.1, 0.1, 0.1, 1.0))
         self._assert_color_attr_equal(self.attr_target_2, (0.2, 0.2, 0.2, 1.0))
@@ -315,8 +315,8 @@ class TestBakeNode(unittest.TestCase):
 
         bake_node_1.free_bake()
 
-        self.assertEqual(bake_node_1.bake_state, "FREE")
-        self.assertEqual(bake_node_2.bake_state, "FREE")
+        self.assertFalse(bake_node_1.is_baked)
+        self.assertFalse(bake_node_1.is_baked)
         self.assertFalse(bake_node_1.bake_in_progress)
         self.assertFalse(bake_node_2.bake_in_progress)
 

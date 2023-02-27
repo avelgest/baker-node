@@ -120,8 +120,7 @@ class BKN_OT_bake_nodes(Operator):
             return {'CANCELLED'}
 
         for bake_node in bake_nodes:
-            if bake_node.bake_state != "BAKED":
-                self._schedule_bake(bake_node)
+            self._schedule_bake(bake_node)
 
         return {'FINISHED'}
 
@@ -132,29 +131,8 @@ class BKN_OT_bake_nodes(Operator):
             bake_node.schedule_bake()
 
 
-class BKN_OT_unbake_nodes(Operator):
-    bl_idname = "node.bkn_unbake_nodes"
-    bl_label = "Unbake Bake Nodes"
-    bl_description = "Unbake the selected bake nodes"
-    bl_options = {'REGISTER'}
-
-    @classmethod
-    def poll(cls, context):
-        return _bake_node_active(context) or _bake_node_selected(context)
-
-    def execute(self, context):
-        bake_nodes = _get_active_or_selected_bake_nodes(context)
-        if not bake_nodes:
-            return {'CANCELLED'}
-
-        for bake_node in bake_nodes:
-            if bake_node.bake_state != 'FREE':
-                bake_node.free_bake()
-
-        return {'FINISHED'}
-
-
 classes = (BKN_OT_bake_button,
-           BKN_OT_cancel_button)
+           BKN_OT_cancel_button,
+           BKN_OT_bake_nodes)
 
 register, unregister = bpy.utils.register_classes_factory(classes)

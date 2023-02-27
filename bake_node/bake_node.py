@@ -24,7 +24,7 @@ from .baking import perform_bake_node_bake
 from .preferences import get_prefs
 
 
-BakeTarget = typing.Union[bpy.types.Image, bpy.types.Attribute]
+BakeTarget = typing.Union[bpy.types.Image, str]
 
 
 class BakeNode(bpy.types.ShaderNodeCustomGroup):
@@ -36,12 +36,10 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         description="A unique identifier for this BakeNode instance"
     )
 
-    bake_state: EnumProperty(
-        name="Bake State",
-        description="The current state of this node",
-        items=(('BAKED', "Baked", ""),
-               ('FREE', "Nodes", "")),
-        default='FREE',
+    is_baked: BoolProperty(
+        name="Is Baked",
+        description="Has this node been baked yet",
+        default=False
     )
 
     # TODO If color attributes are not supported then only allow images
@@ -132,7 +130,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
             node_tree = context.space_data.edit_tree
 
         self.identifier = self._create_identifier(node_tree=node_tree)
-        self.bake_state = 'FREE'
+        self.is_baked = False
         self.bake_in_progress = False
         self.samples = get_prefs().default_samples
         self.width = 210
@@ -141,10 +139,11 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
 
     def copy(self, node):
         self.identifier = self._create_identifier(node_tree=node.id_data)
-        self.node_tree = internal_tree.create_node_tree_for(self)
 
         self.bake_in_progress = False
-        self.bake_state = 'FREE'
+        self.is_baked = False
+
+        self.node_tree = internal_tree.create_node_tree_for(self)
         self.target_image = None
         self.target_attribute = ""
 
@@ -241,7 +240,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
                      immediate: bool = False) -> None:
-        self.bake_state = 'BAKED'
+        self.is_baked = True
         self.bake_in_progress = True
 
         try:
@@ -267,28 +266,26 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
 
         self.bake_in_progress = False
 
-        with self.prevent_sync():
-            self.bake_state = 'FREE'
+        self.is_baked = False
 
     def cancel_bake(self) -> None:
         bake_queue.cancel_bake_jobs(self)
 
     def free_bake(self) -> None:
-        if self.bake_state != 'FREE':
-            with self.prevent_sync():
-                self.bake_state = 'FREE'
-                internal_tree.relink_node_tree(self)
+        if self.is_baked:
+            self.is_baked = False
+            internal_tree.relink_node_tree(self)
         self._update_synced_nodes()
 
     def _update_synced_nodes(self) -> None:
         if not self.sync:
             return
 
-        # Change the bake_state of all synced nodes
+        # Change bake or free all synced nodes
         for node in self._find_synced_nodes():
             if not node.mute:
                 with node.prevent_sync():
-                    if self.bake_state == 'BAKED':
+                    if self.is_baked:
                         node.schedule_bake()
                     else:
                         node.free_bake()
@@ -351,7 +348,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     @contextlib.contextmanager
     def prevent_sync(self):
         """Context manager that prevents this node from affecting the
-        bake_state of nodes that it is synced with.
+        bake state of nodes that it is synced with.
         """
         old_sync_val = self.sync
         try:
@@ -412,10 +409,6 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
             self.target_image = value
         if self.target_type == 'VERTEX_COLORS':
             self.target_attribute = value if value is not None else ""
-
-    @property
-    def is_baked(self) -> bool:
-        return self.bake_state == 'BAKED'
 
     @property
     def node_tree_name(self) -> str:
