@@ -159,12 +159,12 @@ class TestBakeNode(unittest.TestCase):
         bake_node = self.node_tree.nodes.new(BakeNode.bl_idname)
 
         bake_node.input_type = 'COLOR'
-        active_inputs = [x for x in bake_node.inputs if not x.hide]
+        active_inputs = [x for x in bake_node.inputs if x.enabled]
         self.assertEqual(len(active_inputs), 1)
         self.assertEqual(active_inputs[0].type, 'RGBA')
 
         bake_node.input_type = 'SEPARATE_RGB'
-        active_inputs = [x for x in bake_node.inputs if not x.hide]
+        active_inputs = [x for x in bake_node.inputs if x.enabled]
         self.assertEqual(len(active_inputs), 3)
         for x in active_inputs:
             self.assertEqual(x.type, 'VALUE')

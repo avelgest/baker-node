@@ -113,12 +113,12 @@ class _TreeBuilder:
         if input_type == 'COLOR':
             for socket in inputs:
                 # Show only the Color input
-                socket.hide = (socket.name != "Color")
+                socket.enabled = (socket.name == "Color")
 
         elif input_type == 'SEPARATE_RGB':
             for socket in inputs:
                 # Show only the "R", "G" and "B" sockets
-                socket.hide = (socket.name not in "RGB")
+                socket.enabled = (socket.name in "RGB")
 
         else:
             raise ValueError(f"Unrecognised input_type: {input_type}")
