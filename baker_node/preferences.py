@@ -24,7 +24,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     background_baking: BoolProperty(
         name="Bake in Background",
         description="Perform baking in the background if possible",
-        default=True,
+        default=_supports_background_baking,
         update=lambda self, _: self._background_baking_update()
     )
 
@@ -35,7 +35,8 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         min=0, soft_max=1024
     )
 
-    def draw(self, context, layout):
+    def draw(self, _context):
+        layout = self.layout
         layout.prop(self, "background_baking")
         layout.prop(self, "auto_create_targets")
         layout.prop(self, "default_samples")

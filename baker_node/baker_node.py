@@ -30,6 +30,7 @@ BakeTarget = typing.Union[bpy.types.Image, str]
 class BakerNode(bpy.types.ShaderNodeCustomGroup):
     bl_idname = "ShaderNodeBknBakerNode"
     bl_label = "Baker Node"
+    bl_description = "Bakes input to an image or color attribute"
 
     identifier: StringProperty(
         name="Identifier",
@@ -420,6 +421,7 @@ def add_bkn_node_menu_func(self, context):
     """Button to add a new baker node. Appended to the Output category
     of the Add menu in the Shader Editor.
     """
+    self.layout.separator()
     # Only show in object shader node trees
     if getattr(context.space_data, "shader_type", None) == 'OBJECT':
         op_props = self.layout.operator("node.add_node",

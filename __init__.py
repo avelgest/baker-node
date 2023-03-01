@@ -8,7 +8,7 @@ bl_info = {
     "version": (0, 5, 0),
     "blender": (3, 0, 0),
     "category": "Node",
-    "location": "Shader Editor",
+    "location": "Shader Editor > Add > Output > Baker Node",
     "warning": "Beta version",
     "doc_url": ""  # TODO
 }

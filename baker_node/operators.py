@@ -121,7 +121,7 @@ class BKN_OT_cancel_button(BakerNodeButtonBase, Operator):
 
 class BKN_OT_baker_nodes(Operator):
     bl_idname = "node.bkn_baker_nodes"
-    bl_label = "Bake Node Outputs"
+    bl_label = "Bake Selected"
     bl_description = "Bake the selected baker nodes"
     bl_options = {'REGISTER'}
 
