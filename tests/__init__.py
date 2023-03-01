@@ -1,7 +1,7 @@
 import importlib
 
 
-submodule_names = ("bake_node_tests",
+submodule_names = ("baker_node_tests",
                    "bake_queue_tests",
                    )
 

@@ -20,20 +20,20 @@ from . import bake_queue
 from . import internal_tree
 from . import utils
 
-from .baking import perform_bake_node_bake
+from .baking import perform_baker_node_bake
 from .preferences import get_prefs
 
 
 BakeTarget = typing.Union[bpy.types.Image, str]
 
 
-class BakeNode(bpy.types.ShaderNodeCustomGroup):
-    bl_idname = "ShaderNodeBknBakeNode"
-    bl_label = "Bake Node"
+class BakerNode(bpy.types.ShaderNodeCustomGroup):
+    bl_idname = "ShaderNodeBknBakerNode"
+    bl_label = "Baker Node"
 
     identifier: StringProperty(
         name="Identifier",
-        description="A unique identifier for this BakeNode instance"
+        description="A unique identifier for this BakerNode instance"
     )
 
     is_baked: BoolProperty(
@@ -166,9 +166,9 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
             row.operator("node.bkn_cancel_button").identifier = self.identifier
 
         col = layout.column(align=True)
-        col.prop(self, "input_type", text="")
         if prefs.supports_color_attributes:
             col.prop(self, "target_type", text="")
+        col.prop(self, "input_type", text="")
 
         if context.object is not None:
             mesh = context.object.data
@@ -244,7 +244,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         self.bake_in_progress = True
 
         try:
-            perform_bake_node_bake(self, obj, immediate)
+            perform_baker_node_bake(self, obj, immediate)
         except Exception as e:
             self.on_bake_cancel()
             raise e
@@ -290,33 +290,33 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
                     else:
                         node.free_bake()
 
-    def _find_synced_nodes(self) -> List[BakeNode]:
+    def _find_synced_nodes(self) -> List[BakerNode]:
         """Returns a list of all nodes that this node is synced with."""
         if not self.sync:
             return []
         return [x for x in self.id_data.nodes
-                if isinstance(x, BakeNode)
+                if isinstance(x, BakerNode)
                 and x.sync
                 and x.identifier != self.identifier]
 
     def auto_create_target(self) -> None:
         """Creates and sets an appropriate bake target for this
-        BakeNode if a target has not already been provided.
+        BakerNode if a target has not already been provided.
         """
         if self.bake_target is not None:
             return
 
         new_target = None
 
-        bake_nodes = [x for x in self.id_data.nodes
-                      if x.bl_idname == self.bl_idname
-                      and x.target_type == self.target_type
-                      and x.bake_target is not None]
+        baker_nodes = [x for x in self.id_data.nodes
+                       if x.bl_idname == self.bl_idname
+                       and x.target_type == self.target_type
+                       and x.bake_target is not None]
 
         if self.target_type == 'IMAGE_TEXTURES':
             # Copy image settings from an existing image target
-            if bake_nodes:
-                new_target = self._new_target_from(bake_nodes[0].bake_target)
+            if baker_nodes:
+                new_target = self._new_target_from(baker_nodes[0].bake_target)
             else:
                 # Try copying image settings from an Image Texture node
                 node_imgs = [x.image for x in self.id_data.nodes
@@ -329,7 +329,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
 
         elif self.target_type == 'VERTEX_COLORS':
             basename = f"{self.label or self.name} Target"
-            existing_attrs = {x.target_attribute for x in bake_nodes}
+            existing_attrs = {x.target_attribute for x in baker_nodes}
             new_target = utils.suffix_num_unique_in(basename, existing_attrs)
 
         self.bake_target = new_target
@@ -382,7 +382,7 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
         return False
 
     @property
-    def bake_object(self) -> Optional[BakeNode]:
+    def bake_object(self) -> Optional[BakerNode]:
         """The object that should be active when this node is baked."""
         if self.specific_bake_object is not None:
             return self.specific_bake_object
@@ -413,26 +413,26 @@ class BakeNode(bpy.types.ShaderNodeCustomGroup):
     @property
     def node_tree_name(self) -> str:
         """The name that this node's nodegroup is expected to have."""
-        return f".bake node {self.identifier}"
+        return f".baker node {self.identifier}"
 
 
 def add_bkn_node_menu_func(self, context):
-    """Button to add a new bake node. Appended to the Output category
+    """Button to add a new baker node. Appended to the Output category
     of the Add menu in the Shader Editor.
     """
     # Only show in object shader node trees
     if getattr(context.space_data, "shader_type", None) == 'OBJECT':
         op_props = self.layout.operator("node.add_node",
-                                        text="Bake Node")
-        op_props.type = BakeNode.bl_idname
+                                        text="Baker Node")
+        op_props.type = BakerNode.bl_idname
         op_props.use_transform = True
 
 
 def register():
-    bpy.utils.register_class(BakeNode)
+    bpy.utils.register_class(BakerNode)
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.append(add_bkn_node_menu_func)
 
 
 def unregister():
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.remove(add_bkn_node_menu_func)
-    bpy.utils.unregister_class(BakeNode)
+    bpy.utils.unregister_class(BakerNode)

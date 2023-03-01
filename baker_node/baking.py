@@ -11,36 +11,36 @@ from .internal_tree import NodeNames
 from .utils import TempChanges
 
 
-class _BakeNodeBaker:
-    """Bakes a BakeNode's input(s) to it's target. Assumes that the
+class _BakerNodeBaker:
+    """Bakes a BakerNode's input(s) to it's target. Assumes that the
     node's internal tree is set correctly for the node's input/target
     type.
     """
 
     MA_OUTPUT_NAME = "bkn_baker_ma_output"
 
-    def __init__(self, bake_node, obj=None):
-        self.bake_node = bake_node
+    def __init__(self, baker_node, obj=None):
+        self.baker_node = baker_node
         self._added_nodes = []
 
-        if bake_node.node_tree is None:
-            raise ValueError("bake_node has no node_tree")
+        if baker_node.node_tree is None:
+            raise ValueError("baker_node has no node_tree")
 
         # The object to use when baking
-        self._object = bake_node.bake_object if obj is None else obj
+        self._object = baker_node.bake_object if obj is None else obj
 
         # Node tree in which to place the bake target node
-        self._target_tree = bake_node.id_data
+        self._target_tree = baker_node.id_data
 
         self._ma_output_node = None
 
         if self._bake_type not in ('IMAGE_TEXTURES', 'VERTEX_COLORS'):
-            raise ValueError("Expected bake_node.target_type to be in "
+            raise ValueError("Expected baker_node.target_type to be in "
                              "{'IMAGE_TEXTURES', 'VERTEX_COLORS'}")
 
     def _init_ma_output_node(self, exit_stack) -> None:
         """Creates a Material Output node and connects it to socket."""
-        node_tree = self.bake_node.node_tree
+        node_tree = self.baker_node.node_tree
         socket = self._bake_socket
 
         self._ma_output_node = node_tree.nodes.new("ShaderNodeOutputMaterial")
@@ -68,7 +68,7 @@ class _BakeNodeBaker:
         get_target_tree = utils.safe_node_tree_getter(target_tree)
 
         if self._bake_type == 'IMAGE_TEXTURES':
-            target = self.bake_node.target_image
+            target = self.baker_node.target_image
             target_node = target_tree.nodes.new("ShaderNodeTexImage")
 
             target_node_name = target_node.name
@@ -87,12 +87,12 @@ class _BakeNodeBaker:
 
             mesh_name = mesh.name
 
-            target_name = self.bake_node.target_attribute
+            target_name = self.baker_node.target_attribute
             target = mesh.color_attributes.get(target_name)
 
             if target is None:
                 # Create the missing color attribute
-                # TODO get type/domain from bake_node
+                # TODO get type/domain from baker_node
                 target = mesh.color_attributes.new(target_name, 'FLOAT_COLOR',
                                                    'CORNER')
 
@@ -162,7 +162,7 @@ class _BakeNodeBaker:
 
     def _set_bake_settings(self, exit_stack: contextlib.ExitStack) -> None:
         scene = bpy.context.scene
-        bake_node = self.bake_node
+        baker_node = self.baker_node
 
         render_props = exit_stack.enter_context(
                         TempChanges(scene.render, False))
@@ -182,7 +182,7 @@ class _BakeNodeBaker:
         cycles_props.film_exposure = 1.0
         # TODO add use_preview_adaptive_sampling/use_denoising to prefs?
         # cycles_props.use_preview_adaptive_sampling = True  # TODO ???
-        cycles_props.samples = bake_node.samples
+        cycles_props.samples = baker_node.samples
         cycles_props.use_denoising = False
 
         bake_props.target = self._bake_type
@@ -191,28 +191,28 @@ class _BakeNodeBaker:
 
     @property
     def _bake_socket(self) -> NodeSocket:
-        nodes = self.bake_node.node_tree.nodes
+        nodes = self.baker_node.node_tree.nodes
         emit_node = nodes.get(NodeNames.emission_shader)
         return emit_node.outputs[0]
 
     @property
     def _bake_type(self) -> str:
-        return self.bake_node.target_type
+        return self.baker_node.target_type
 
     @property
     def _uv_layer(self) -> str:
         """The UV map to use for baking."""
-        uv_map = self.bake_node.uv_map
+        uv_map = self.baker_node.uv_map
         if (uv_map not in self._object.data.uv_layers
                 or not self._bake_type == 'IMAGE_TEXTURES'):
             return ""
         return uv_map
 
 
-def perform_bake_node_bake(bake_node, obj=None, immediate=False):
-    """Bakes a bake node according to its properties.
+def perform_baker_node_bake(baker_node, obj=None, immediate=False):
+    """Bakes a baker node according to its properties.
     Assumes that no bake job is currently running.
     """
-    baker = _BakeNodeBaker(bake_node, obj=obj)
+    baker = _BakerNodeBaker(baker_node, obj=obj)
 
     baker.bake(immediate=immediate)

@@ -4,7 +4,7 @@ from . import utils
 
 submodule_names = [
     "preferences",
-    "bake_node",
+    "baker_node",
     "bake_queue",
     "internal_tree",
     "baking",

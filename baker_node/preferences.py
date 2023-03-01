@@ -11,7 +11,7 @@ _supports_color_attributes = ("color_attributes"
                               in bpy.types.Mesh.bl_rna.properties)
 
 
-class BakeNodePrefs(bpy.types.AddonPreferences):
+class BakerNodePrefs(bpy.types.AddonPreferences):
     bl_idname = package_name
 
     auto_create_targets: BoolProperty(
@@ -54,8 +54,8 @@ class BakeNodePrefs(bpy.types.AddonPreferences):
         return _supports_color_attributes
 
 
-def get_prefs() -> BakeNodePrefs:
-    """Returns the preferences for the Bake Node addon"""
+def get_prefs() -> BakerNodePrefs:
+    """Returns the preferences for the Baker Node addon"""
     try:
         return bpy.context.preferences.addons[package_name].preferences
     except KeyError:
@@ -67,8 +67,8 @@ def get_prefs() -> BakeNodePrefs:
 
 
 def register():
-    bpy.utils.register_class(BakeNodePrefs)
+    bpy.utils.register_class(BakerNodePrefs)
 
 
 def unregister():
-    bpy.utils.unregister_class(BakeNodePrefs)
+    bpy.utils.unregister_class(BakerNodePrefs)

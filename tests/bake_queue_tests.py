@@ -1,18 +1,18 @@
 import unittest
 import bpy
 
-from ..bake_node import bake_queue as bake_queue_module
-from ..bake_node.bake_node import BakeNode
-from ..bake_node.bake_queue import BakeQueue
-from ..bake_node.preferences import get_prefs
+from ..baker_node import bake_queue as bake_queue_module
+from ..baker_node.baker_node import BakerNode
+from ..baker_node.bake_queue import BakeQueue
+from ..baker_node.preferences import get_prefs
 
 
 supports_bg_baking = get_prefs().supports_background_baking
 
 
-class BakeNodeMock(BakeNode):
-    bl_idname = f"{BakeNode.bl_idname}_mock"
-    bl_label = "BakeNode Mock"
+class BakerNodeMock(BakerNode):
+    bl_idname = f"{BakerNode.bl_idname}_mock"
+    bl_label = "BakerNode Mock"
 
     def perform_bake(self, *_args, **_kwargs):
         return
@@ -24,17 +24,17 @@ class TestBakeQueue(unittest.TestCase):
     img_target: bpy.types.Image
 
     bake_queue: BakeQueue
-    bake_node: BakeNode
+    baker_node: BakerNode
 
     MATERIAL_NAME = "TestBakeQueue_material"
-    BAKE_NODE_NAME = "TestBakeQueue_bake_node"
+    BAKE_NODE_NAME = "TestBakeQueue_baker_node"
 
     @classmethod
     def setUpClass(cls):
-        # BakeNodeMock must be registered before BakeNode
-        bpy.utils.unregister_class(BakeNode)
-        bpy.utils.register_class(BakeNodeMock)
-        bpy.utils.register_class(BakeNode)
+        # BakerNodeMock must be registered before BakerNode
+        bpy.utils.unregister_class(BakerNode)
+        bpy.utils.register_class(BakerNodeMock)
+        bpy.utils.register_class(BakerNode)
 
         bpy.ops.mesh.primitive_plane_add(calc_uvs=True)
         cls.obj = bpy.context.active_object
@@ -47,20 +47,20 @@ class TestBakeQueue(unittest.TestCase):
         cls.obj.active_material = ma
         cls.img_target = bpy.data.images.new("tst_img", 4, 4, is_data=True)
 
-        bake_node = ma.node_tree.nodes.new(BakeNodeMock.bl_idname)
+        baker_node = ma.node_tree.nodes.new(BakerNodeMock.bl_idname)
 
-        bake_node.name = cls.BAKE_NODE_NAME
-        bake_node.target_type = 'IMAGE_TEXTURES'
-        bake_node.target_image = cls.img_target
+        baker_node.name = cls.BAKE_NODE_NAME
+        baker_node.target_type = 'IMAGE_TEXTURES'
+        baker_node.target_image = cls.img_target
 
         get_prefs().background_baking = True
 
     @classmethod
     def tearDownClass(cls):
         ma = bpy.data.materials.get(cls.MATERIAL_NAME)
-        bake_node = ma.node_tree.nodes.get(cls.BAKE_NODE_NAME)
+        baker_node = ma.node_tree.nodes.get(cls.BAKE_NODE_NAME)
 
-        bake_node.target_image = None
+        baker_node.target_image = None
 
         bpy.data.materials.remove(ma)
         bpy.data.objects.remove(cls.obj)
@@ -68,7 +68,7 @@ class TestBakeQueue(unittest.TestCase):
 
         BakeQueue.get_instance().clear()
 
-        bpy.utils.unregister_class(BakeNodeMock)
+        bpy.utils.unregister_class(BakerNodeMock)
 
     def setUp(self):
         self.bake_queue.clear()
@@ -86,7 +86,7 @@ class TestBakeQueue(unittest.TestCase):
         return self.material.node_tree
 
     @property
-    def bake_node(self) -> BakeNode:
+    def baker_node(self) -> BakerNode:
         return self.node_tree.nodes[self.BAKE_NODE_NAME]
 
     def test_1_init(self):
@@ -111,30 +111,31 @@ class TestBakeQueue(unittest.TestCase):
 
     @unittest.skipUnless(supports_bg_baking, "Background baking not supported")
     def test_2_1_add_job_async(self):
-        self.bake_queue.add_job_from_bake_node(self.bake_node)
+        self.bake_queue.add_job_from_baker_node(self.baker_node)
         self.assertEqual(len(self.bake_queue.jobs), 1)
 
         job = self.bake_queue.jobs[0]
-        self.assertIs(job.node_tree, self.bake_node.id_data)
-        self.assertEqual(job.node_name, self.bake_node.name)
-        self.assertEqual(job.node_id, self.bake_node.identifier)
-        self.assertEqual(job.get_bake_node(), self.bake_node)
+        self.assertIs(job.node_tree, self.baker_node.id_data)
+        self.assertEqual(job.node_name, self.baker_node.name)
+        self.assertEqual(job.node_id, self.baker_node.identifier)
+        self.assertEqual(job.get_baker_node(), self.baker_node)
 
         # Job should now be the active job
         self.assertFalse(job.finished)
         self.assertTrue(job.in_progress)
         self.assertEqual(self.bake_queue.active_job, job)
 
-        self.assertTrue(self.bake_queue.has_bake_node_job(self.bake_node))
+        self.assertTrue(self.bake_queue.has_baker_node_job(self.baker_node))
 
     def test_2_2_add_job_immediate(self):
-        self.bake_queue.add_job_from_bake_node(self.bake_node, immediate=True)
+        bake_queue = self.bake_queue
+        bake_queue.add_job_from_baker_node(self.baker_node, immediate=True)
 
         # Job should be run immediately and have been removed
-        self.assertEqual(len(self.bake_queue.jobs), 0)
+        self.assertEqual(len(bake_queue.jobs), 0)
 
     def test_3_clear(self):
-        self.bake_queue.add_job_from_bake_node(self.bake_node)
+        self.bake_queue.add_job_from_baker_node(self.baker_node)
         self.bake_queue.clear()
 
         self.assertEqual(len(self.bake_queue.jobs), 0)

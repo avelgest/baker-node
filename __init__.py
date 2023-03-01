@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 bl_info = {
-    "name": "Bake Node",
+    "name": "Baker Node",
     "description": "Adds a node to the shader editor that bakes its "
                    "input(s) with a single click",
     "author": "Avelgest",
@@ -13,16 +13,16 @@ bl_info = {
     "doc_url": ""  # TODO
 }
 
-if "bake_node" in globals():
+if "baker_node" in globals():
     import importlib
-    importlib.reload(globals()["bake_node"])
+    importlib.reload(globals()["baker_node"])
 else:
-    from . import bake_node
+    from . import baker_node
 
 
 def register():
-    bake_node.register()
+    baker_node.register()
 
 
 def unregister():
-    bake_node.unregister()
+    baker_node.unregister()

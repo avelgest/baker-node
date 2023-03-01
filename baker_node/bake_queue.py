@@ -39,7 +39,7 @@ def object_bake_pre(*_):
 
 class BakeJobError(RuntimeError):
     """Error raised when a bake job could not start (e.g if the
-    BakeNode could not be found).
+    BakerNode could not be found).
     """
 
 
@@ -53,22 +53,22 @@ class BakeQueueJob(bpy.types.PropertyGroup):
     material: bpy.props.PointerProperty(
         type=bpy.types.Material,
         name="material",
-        description="The material in which the bake_node is located"
+        description="The material in which the baker_node is located"
     )
     node_group: bpy.props.PointerProperty(
         type=bpy.types.ShaderNodeTree,
         name="target node tree",
-        description="The node group in which the bake node is located"
+        description="The node group in which the baker node is located"
     )
 
     node_name: bpy.props.StringProperty(
         name="node name",
-        description="The name of the bake node",
+        description="The name of the baker node",
         default=""
     )
     node_id: bpy.props.StringProperty(
         name="node identifier",
-        description="The identifier property of the bake node",
+        description="The identifier property of the baker node",
         default=""
     )
     bake_object: bpy.props.PointerProperty(
@@ -92,17 +92,17 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         default=False
     )
 
-    def init_from_bake_node(self, bake_node, background=False) -> None:
-        self.node_name = bake_node.name
-        self.node_id = bake_node.identifier
-        self.bake_object = bake_node.bake_object
+    def init_from_baker_node(self, baker_node, background=False) -> None:
+        self.node_name = baker_node.name
+        self.node_id = baker_node.identifier
+        self.bake_object = baker_node.bake_object
         self.background = background
 
-        self.node_tree = bake_node.id_data
+        self.node_tree = baker_node.id_data
         if not hasattr(self.node_tree, "nodes"):
-            raise TypeError("Expected bake_node.id_data to be a node tree")
+            raise TypeError("Expected baker_node.id_data to be a node tree")
 
-    def get_bake_node(self) -> Optional[bpy.types.ShaderNode]:
+    def get_baker_node(self) -> Optional[bpy.types.ShaderNode]:
         if self.node_tree is None:
             return None
 
@@ -112,7 +112,7 @@ class BakeQueueJob(bpy.types.PropertyGroup):
             return node
 
         # If the node has been renamed then search using the
-        # "identifier" property that BakeNode instances have
+        # "identifier" property that BakerNode instances have
         return utils.get_node_by_attr(self.node_tree.nodes,
                                       "identifier", self.node_id)
 
@@ -122,9 +122,9 @@ class BakeQueueJob(bpy.types.PropertyGroup):
 
         self.finished = True
         self.in_progress = False
-        bake_node = self.get_bake_node()
-        if bake_node is not None:
-            bake_node.on_bake_cancel()
+        baker_node = self.get_baker_node()
+        if baker_node is not None:
+            baker_node.on_bake_cancel()
 
     def on_complete(self):
         if self.finished:
@@ -133,9 +133,9 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         self.finished = True
         self.in_progress = False
 
-        bake_node = self.get_bake_node()
-        if bake_node is not None:
-            bake_node.on_bake_complete()
+        baker_node = self.get_baker_node()
+        if baker_node is not None:
+            baker_node.on_bake_complete()
 
     def run(self) -> None:
         """Runs this bake job. Throws a BakeJobError if the job has
@@ -147,18 +147,18 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         if self.background and bpy.app.is_job_running('OBJECT_BAKE'):
             raise RuntimeError("A bake job is already running.")
 
-        bake_node = self.get_bake_node()
-        if bake_node is None:
-            raise BakeJobError("BakeNode not found.")
+        baker_node = self.get_baker_node()
+        if baker_node is None:
+            raise BakeJobError("BakerNode not found.")
 
-        bake_node.perform_bake(obj=self.bake_object,
-                               immediate=not self.background)
+        baker_node.perform_bake(obj=self.bake_object,
+                                immediate=not self.background)
 
         self.in_progress = self.background
 
     @property
     def node_tree(self) -> Optional[bpy.types.ShaderNodeTree]:
-        """The ShaderNodeTree in which the bake node is located."""
+        """The ShaderNodeTree in which the baker node is located."""
         if self.material is not None:
             return self.material.node_tree
         return self.node_group
@@ -280,12 +280,12 @@ class BakeQueue(bpy.types.PropertyGroup):
         if not job.in_progress:
             self.job_complete(job)
 
-    def add_job_from_bake_node(self, bake_node, immediate=False) -> None:
+    def add_job_from_baker_node(self, baker_node, immediate=False) -> None:
         in_background = self.bake_in_background and not immediate
 
         job = self.jobs.add()
         try:
-            job.init_from_bake_node(bake_node, in_background)
+            job.init_from_baker_node(baker_node, in_background)
         except Exception as e:
             self.jobs.remove(len(self.jobs)-1)
             raise e
@@ -299,17 +299,17 @@ class BakeQueue(bpy.types.PropertyGroup):
             self.try_run_next()
             self._add_update_timer()
 
-    def cancel_bake_node_jobs(self, bake_node) -> None:
-        """Cancels all jobs in the queue for the given BakeNode.
+    def cancel_baker_node_jobs(self, baker_node) -> None:
+        """Cancels all jobs in the queue for the given BakerNode.
         Does not affect jobs that have already started baking.
         """
-        if not hasattr(bake_node, "identifier"):
-            raise ValueError("Expected bake_node to have an 'identifier'"
+        if not hasattr(baker_node, "identifier"):
+            raise ValueError("Expected baker_node to have an 'identifier'"
                              " property")
 
-        # indices of all jobs from bake_node
+        # indices of all jobs from baker_node
         indices = [idx for idx, job in enumerate(self.jobs)
-                   if job.node_id == bake_node.identifier]
+                   if job.node_id == baker_node.identifier]
 
         # Remove from back to front so indices remain valid
         indices.sort(reverse=True)
@@ -322,15 +322,15 @@ class BakeQueue(bpy.types.PropertyGroup):
             job.on_cancel()
         self.jobs.clear()
 
-    def has_bake_node_job(self, bake_node) -> bool:
-        """Returns whether bake_node has any sceduled or active jobs
+    def has_baker_node_job(self, baker_node) -> bool:
+        """Returns whether baker_node has any sceduled or active jobs
         in this bake queue.
         """
         active = self.active_job
-        if active is not None and active.node_id == bake_node.identifier:
+        if active is not None and active.node_id == baker_node.identifier:
             return True
 
-        return any(x for x in self.jobs if x.node_id == bake_node.identifier)
+        return any(x for x in self.jobs if x.node_id == baker_node.identifier)
 
     def job_cancel(self, job: BakeQueueJob) -> None:
         job.on_cancel()
@@ -376,33 +376,33 @@ class BakeQueue(bpy.types.PropertyGroup):
         return self.active_job is not None
 
 
-def add_bake_job(bake_node) -> None:
-    """Adds a job to the bake queue from a BakeNode instance."""
+def add_bake_job(baker_node) -> None:
+    """Adds a job to the bake queue from a BakerNode instance."""
     bake_queue = utils.get_bake_queue()
-    bake_queue.add_job_from_bake_node(bake_node)
+    bake_queue.add_job_from_baker_node(baker_node)
 
 
-def cancel_bake_jobs(bake_node) -> None:
-    """Cancels all jobs in the bake queue from bake_node."""
+def cancel_bake_jobs(baker_node) -> None:
+    """Cancels all jobs in the bake queue from baker_node."""
     bake_queue = utils.get_bake_queue()
-    bake_queue.cancel_bake_node_jobs(bake_node)
+    bake_queue.cancel_baker_node_jobs(baker_node)
 
 
-def has_scheduled_job(bake_node) -> bool:
-    """Returns True if bake_node has any jobs scheduled in the
+def has_scheduled_job(baker_node) -> bool:
+    """Returns True if baker_node has any jobs scheduled in the
     bake queue.
     """
     bake_queue = utils.get_bake_queue()
-    return bake_queue.has_bake_node_job(bake_node)
+    return bake_queue.has_baker_node_job(baker_node)
 
 
-def is_bake_job_active(bake_node) -> bool:
-    """Returns True if bake_node has a job in the bake queue and that
+def is_bake_job_active(baker_node) -> bool:
+    """Returns True if baker_node has a job in the bake queue and that
     job is currently being baked.
     """
     active_job = utils.get_bake_queue().active_job
     return (active_job is not None
-            and active_job.node_id == bake_node.identifier)
+            and active_job.node_id == baker_node.identifier)
 
 
 def _schedule_update(delay=0.3) -> None:

@@ -74,17 +74,18 @@ def safe_node_tree_getter(node_tree: ShaderNodeTree
     return get_node_tree
 
 
-def safe_bake_node_getter(bake_node) -> Callable[[], Optional[bpy.types.Node]]:
-    node_tree_getter = safe_node_tree_getter(bake_node.id_data)
-    bake_node_id = bake_node.identifier
+def safe_baker_node_getter(baker_node
+                           ) -> Callable[[], Optional[bpy.types.Node]]:
+    node_tree_getter = safe_node_tree_getter(baker_node.id_data)
+    baker_node_id = baker_node.identifier
 
-    def get_bake_node() -> Optional[bpy.types.Node]:
+    def get_baker_node() -> Optional[bpy.types.Node]:
         node_tree = node_tree_getter()
         if node_tree is not None:
             return get_node_by_attr(node_tree.nodes, "identifier",
-                                    bake_node_id)
+                                    baker_node_id)
         return None
-    return get_bake_node
+    return get_baker_node
 
 
 def import_all(module_names: Collection[str],
