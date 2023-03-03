@@ -161,27 +161,35 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.node_tree is not None:
             bpy.data.node_groups.remove(self.node_tree)
 
-    def draw_buttons(self, context, layout):
-        prefs = get_prefs()
+    def _draw_bake_button(self, layout: bpy.types.UILayout) -> None:
+        """Draws the node's "Bake" button on layout."""
         row = layout.row(align=True)
 
         if not self.bake_in_progress:
+            # Draw normal "Bake" button
             row.operator("node.bkn_bake_button",
                          text="Bake").identifier = self.identifier
             if (self.target_type == 'IMAGE_TEXTURES'
                     and self.target_image is not None):
+                # When using an image as the target draw buttons to
+                # pack or save the image.
+                row.context_pointer_set("edit_image", self.target_image)
+
                 if self.target_image.packed_file is None:
-                    row.operator("node.bkn_pack_button", text="",
-                                 icon='UGLYPACKAGE'
-                                 ).identifier = self.identifier
-                row.operator("node.bkn_save_button", text="",
-                             icon='FILE_TICK').identifier = self.identifier
+                    row.operator("image.pack", text="", icon='UGLYPACKAGE')
+                row.operator("image.save", text="", icon='FILE_TICK')
+
         elif bake_queue.is_bake_job_active(self):
-            # Bake has started
+            # Bake has started draw bake progress
             row.template_running_jobs()
         else:
             # Bake is scheduled but not started
             row.operator("node.bkn_cancel_button").identifier = self.identifier
+
+    def draw_buttons(self, context, layout):
+        prefs = get_prefs()
+
+        self._draw_bake_button(layout)
 
         col = layout.column(align=True)
         if prefs.supports_color_attributes:

@@ -9,7 +9,6 @@ import bpy
 from bpy.props import StringProperty
 from bpy.types import Operator
 
-from . import utils
 from .baker_node import BakerNode
 from .preferences import get_prefs
 
@@ -120,48 +119,6 @@ class BKN_OT_cancel_button(BakerNodeButtonBase, Operator):
         return {'FINISHED'}
 
 
-class BKN_OT_save_button(BakerNodeButtonBase, Operator):
-    bl_idname = "node.bkn_save_button"
-    bl_label = "Save Image"
-    bl_description = "Saves the image target of this node"
-
-    def execute(self, context):
-        baker_node = self.get_baker_node(context)
-
-        image = baker_node.target_image
-        if image is None:
-            self.report({'WARNING'}, "Node has no target_image")
-            return {'CANCELLED'}
-
-        op_caller = utils.OpCaller(context, edit_image=image)
-
-        op_caller.call(bpy.ops.image.save, "INVOKE_DEFAULT")
-
-        return {'FINISHED'}
-
-
-class BKN_OT_pack_button(BakerNodeButtonBase, Operator):
-    bl_idname = "node.bkn_pack_button"
-    bl_label = "Pack Image"
-    bl_description = ("Packs the image target of this node as embedded data "
-                      "in the .blend file")
-
-    bl_options = {'INTERNAL', 'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        image = self.get_baker_node(context).target_image
-
-        if image is None:
-            self.report({'WARNING'}, "Node has no target_image")
-            return {'CANCELLED'}
-
-        op_caller = utils.OpCaller(context, edit_image=image)
-
-        result = op_caller.call(bpy.ops.image.pack, 'INVOKE_DEFAULT')
-
-        return result
-
-
 class BKN_OT_baker_nodes(Operator):
     bl_idname = "node.bkn_baker_nodes"
     bl_label = "Bake Selected"
@@ -192,8 +149,6 @@ class BKN_OT_baker_nodes(Operator):
 classes = (BKN_OT_bake_button,
            BKN_OT_free_bake_button,
            BKN_OT_cancel_button,
-           BKN_OT_save_button,
-           BKN_OT_pack_button,
            BKN_OT_baker_nodes)
 
 register, unregister = bpy.utils.register_classes_factory(classes)
