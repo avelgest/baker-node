@@ -168,9 +168,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if not self.bake_in_progress:
             row.operator("node.bkn_bake_button",
                          text="Bake").identifier = self.identifier
-            if self.target_type == 'IMAGE_TEXTURES':
+            if (self.target_type == 'IMAGE_TEXTURES'
+                    and self.target_image is not None):
+                if self.target_image.packed_file is None:
+                    row.operator("node.bkn_pack_button", text="",
+                                 icon='UGLYPACKAGE'
+                                 ).identifier = self.identifier
                 row.operator("node.bkn_save_button", text="",
-                             icon="FILE_TICK").identifier = self.identifier
+                             icon='FILE_TICK').identifier = self.identifier
         elif bake_queue.is_bake_job_active(self):
             # Bake has started
             row.template_running_jobs()
