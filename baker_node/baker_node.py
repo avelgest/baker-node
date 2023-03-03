@@ -260,8 +260,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.is_baked = True
         self.bake_in_progress = False
 
-        internal_tree.relink_node_tree(self)
-
     def on_bake_cancel(self) -> None:
         """Called if the bake is cancelled."""
         if not self.bake_in_progress:
@@ -276,7 +274,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def free_bake(self) -> None:
         if self.is_baked:
             self.is_baked = False
-            internal_tree.relink_node_tree(self)
         self._update_synced_nodes()
 
     def _update_synced_nodes(self) -> None:

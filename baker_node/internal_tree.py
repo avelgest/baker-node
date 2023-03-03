@@ -60,7 +60,7 @@ class _TreeBuilder:
         node_tree.inputs.new(name="G", type="NodeSocketFloat")
         node_tree.inputs.new(name="B", type="NodeSocketFloat")
 
-        node_tree.outputs.new(name="Out", type="NodeSocketColor")
+        node_tree.outputs.new(name="Baked", type="NodeSocketColor")
         node_tree.outputs.new(name="Unbaked", type="NodeSocketColor")
 
         # Hide the default values of all inputs
@@ -154,17 +154,13 @@ class _TreeBuilder:
         links.new(group_out_unbaked, unbaked_val_soc)
         links.new(nodes[NodeNames.emission_shader].inputs[0], unbaked_val_soc)
 
-        if not baker_node.is_baked:
-            links.new(group_out_baked, unbaked_val_soc)
+        if baker_node.target_type == 'IMAGE_TEXTURES':
+            baked_val_soc = nodes[NodeNames.baked_img].outputs[0]
+        elif baker_node.target_type == 'VERTEX_COLORS':
+            baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]
         else:
-            if baker_node.target_type == 'IMAGE_TEXTURES':
-                baked_val_soc = nodes[NodeNames.baked_img].outputs[0]
-            elif baker_node.target_type == 'VERTEX_COLORS':
-                baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]
-            else:
-                raise ValueError("Unknown target type "
-                                 f"'{baker_node.target_type}'")
-            links.new(group_out_baked, baked_val_soc)
+            raise ValueError(f"Unknown target type '{baker_node.target_type}'")
+        links.new(group_out_baked, baked_val_soc)
 
 
 def create_node_tree_for(baker_node) -> ShaderNodeTree:
@@ -182,11 +178,6 @@ def rebuild_node_tree(baker_node) -> None:
 
     builder = _TreeBuilder(baker_node)
     builder.rebuild_node_tree()
-
-
-def relink_node_tree(baker_node) -> None:
-    if baker_node.node_tree is not None:
-        _TreeBuilder(baker_node).link_nodes()
 
 
 def refresh_targets(baker_node) -> None:
