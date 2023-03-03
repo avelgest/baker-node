@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from . import utils
+if "utils" not in globals():
+    from . import utils
+else:
+    import importlib
+    importlib.reload(globals()["utils"])
 
 submodule_names = [
     "preferences",
