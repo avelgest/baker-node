@@ -27,6 +27,15 @@ from .preferences import get_prefs
 BakeTarget = typing.Union[bpy.types.Image, str]
 
 
+def _prop_search(layout: bpy.types.UILayout, *args, **kwargs):
+    """Used instead of UILayout.prop_search since old versions of
+    prop_search don't support the results_are_suggestions parameter.
+    """
+    if bpy.app.version < (3, 2):
+        kwargs.pop("results_are_suggestions", None)
+    return layout.prop_search(*args, **kwargs)
+
+
 class BakerNode(bpy.types.ShaderNodeCustomGroup):
     bl_idname = "ShaderNodeBknBakerNode"
     bl_label = "Baker Node"
@@ -188,16 +197,16 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
             # UV map
             if hasattr(mesh, "uv_layers"):
-                layout.prop_search(self, "uv_map",
-                                   mesh, "uv_layers",
-                                   results_are_suggestions=True)
+                _prop_search(layout, self, "uv_map",
+                             mesh, "uv_layers",
+                             results_are_suggestions=True)
             else:
                 layout.prop(self, "uv_map", icon="DOT")
         else:
             if hasattr(mesh, "color_attributes"):
-                layout.prop_search(self, "target_attribute",
-                                   mesh, "color_attributes",
-                                   text="", results_are_suggestions=True)
+                _prop_search(self, "target_attribute",
+                             mesh, "color_attributes",
+                             text="", results_are_suggestions=True)
             else:
                 layout.prop(self, "target_attribute", text="", icon="DOT")
 
