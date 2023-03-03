@@ -65,12 +65,12 @@ class BakerNodeButtonBase:
 
     def get_baker_node(self, context) -> Optional[BakerNode]:
         if not self.identifier:
-            self.report("No identifier specified")
+            self.report({'WARNING'}, "No identifier specified")
             return None
 
         node = _get_node_by_identifier(context, self.identifier)
         if node is None:
-            self.report("No baker node found with identifier "
+            self.report({'WARNING'}, "No baker node found with identifier "
                         f"'{self.identifier}'")
         return node
 

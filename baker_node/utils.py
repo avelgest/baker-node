@@ -176,7 +176,6 @@ class OpCaller:
         args = [exec_ctx] if undo is None else [exec_ctx, undo]
 
         if hasattr(self._context, "temp_override"):
-            print(args, self._keywords)
             with self._context.temp_override(**self._keywords):
                 return op(*args, **props)
         else:
