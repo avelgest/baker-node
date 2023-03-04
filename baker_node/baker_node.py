@@ -453,11 +453,23 @@ def add_bkn_node_menu_func(self, context):
         op_props.use_transform = True
 
 
+def bkn_node_context_menu_func(self, context):
+    # Only show if a baker node is selected
+    if not any(x.bl_idname == BakerNode.bl_idname
+               for x in context.selected_nodes):
+        return
+
+    self.layout.separator()
+    self.layout.operator("node.bkn_bake_nodes")
+
+
 def register():
     bpy.utils.register_class(BakerNode)
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.append(add_bkn_node_menu_func)
+    bpy.types.NODE_MT_context_menu.append(bkn_node_context_menu_func)
 
 
 def unregister():
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.remove(add_bkn_node_menu_func)
+    bpy.types.NODE_MT_context_menu.remove(bkn_node_context_menu_func)
     bpy.utils.unregister_class(BakerNode)
