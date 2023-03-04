@@ -6,7 +6,6 @@ from typing import Optional
 
 import bpy
 
-from bpy.props import StringProperty
 from bpy.types import Operator
 
 from .baker_node import BakerNode
@@ -40,38 +39,21 @@ def _get_active_or_selected_baker_nodes(context) -> typing.Set[BakerNode]:
     return baker_nodes
 
 
-def _get_node_by_identifier(context, identifier) -> Optional[BakerNode]:
-    if getattr(context.space_data, "edit_tree", None) is None:
-        return None
-    for node in context.space_data.edit_tree.nodes:
-        if isinstance(node, BakerNode) and node.identifier == identifier:
-            return node
-    return None
-
-
 class BakerNodeButtonBase:
     """Base class for operators used as buttons on a BakerNode."""
     bl_options = {'INTERNAL', 'REGISTER'}
-
-    identifier: StringProperty(
-        name="Node Identifier",
-        description="The identifier of the node to affect"
-    )
 
     @classmethod
     def poll(cls, _context):
         return True
 
     def get_baker_node(self, context) -> Optional[BakerNode]:
-        if not self.identifier:
-            self.report({'WARNING'}, "No identifier specified")
-            return None
-
-        node = _get_node_by_identifier(context, self.identifier)
-        if node is None:
-            self.report({'WARNING'}, "No baker node found with identifier "
-                        f"'{self.identifier}'")
-        return node
+        if getattr(context, "baker_node", None):
+            return context.baker_node
+        if not hasattr(context, "baker_node"):
+            self.report({'ERROR'}, "Expected context to have a baker_node "
+                                   "attribute set")
+        return None
 
 
 class BKN_OT_bake_button(BakerNodeButtonBase, Operator):

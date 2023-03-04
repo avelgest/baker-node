@@ -164,11 +164,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def _draw_bake_button(self, layout: bpy.types.UILayout) -> None:
         """Draws the node's "Bake" button on layout."""
         row = layout.row(align=True)
+        row.context_pointer_set("baker_node", self)
 
         if not self.bake_in_progress:
             # Draw normal "Bake" button
-            row.operator("node.bkn_bake_button",
-                         text="Bake").identifier = self.identifier
+            row.operator("node.bkn_bake_button", text="Bake")
             if (self.target_type == 'IMAGE_TEXTURES'
                     and self.target_image is not None):
                 # When using an image as the target draw buttons to
@@ -184,7 +184,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             row.template_running_jobs()
         else:
             # Bake is scheduled but not started
-            row.operator("node.bkn_cancel_button").identifier = self.identifier
+            row.operator("node.bkn_cancel_button")
 
     def draw_buttons(self, context, layout):
         prefs = get_prefs()
