@@ -38,7 +38,7 @@ def _prop_search(layout: bpy.types.UILayout, *args, **kwargs):
 
 class BakerNode(bpy.types.ShaderNodeCustomGroup):
     bl_idname = "ShaderNodeBknBakerNode"
-    bl_label = "Baker Node"
+    bl_label = "Baker"
     bl_description = "Bakes input to an image or color attribute"
 
     identifier: StringProperty(
@@ -217,7 +217,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 layout.prop(self, "uv_map", icon="DOT")
         else:
             if hasattr(mesh, "color_attributes"):
-                _prop_search(self, "target_attribute",
+                _prop_search(layout, self, "target_attribute",
                              mesh, "color_attributes",
                              text="", results_are_suggestions=True)
             else:
@@ -448,7 +448,7 @@ def add_bkn_node_menu_func(self, context):
     # Only show in object shader node trees
     if getattr(context.space_data, "shader_type", None) == 'OBJECT':
         op_props = self.layout.operator("node.add_node",
-                                        text="Baker Node")
+                                        text="Baker")
         op_props.type = BakerNode.bl_idname
         op_props.use_transform = True
 

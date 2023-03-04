@@ -101,8 +101,8 @@ class BKN_OT_cancel_button(BakerNodeButtonBase, Operator):
         return {'FINISHED'}
 
 
-class BKN_OT_baker_nodes(Operator):
-    bl_idname = "node.bkn_baker_nodes"
+class BKN_OT_bake_nodes(Operator):
+    bl_idname = "node.bkn_bake_nodes"
     bl_label = "Bake Selected"
     bl_description = "Bake the selected baker nodes"
     bl_options = {'REGISTER'}
@@ -131,6 +131,6 @@ class BKN_OT_baker_nodes(Operator):
 classes = (BKN_OT_bake_button,
            BKN_OT_free_bake_button,
            BKN_OT_cancel_button,
-           BKN_OT_baker_nodes)
+           BKN_OT_bake_nodes)
 
 register, unregister = bpy.utils.register_classes_factory(classes)
