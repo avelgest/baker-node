@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Optional
+
 import bpy
 
 from bpy.types import ShaderNode, ShaderNodeTree
@@ -28,13 +30,13 @@ class _TreeBuilder:
         if not hasattr(baker_node, "node_tree"):
             raise TypeError("Expected a node with a node_tree attribute.")
 
-    def _add_baked_nodes(self) -> None:
+    def _add_baked_nodes(self, target_image) -> None:
         nodes = self.baker_node.node_tree.nodes
         links = self.baker_node.node_tree.links
 
         baked_img_node = nodes.new("ShaderNodeTexImage")
         baked_img_node.name = NodeNames.baked_img
-        baked_img_node.image = self.baker_node.target_image
+        baked_img_node.image = target_image
         baked_img_node.location.y = 400
 
         uv_map_node = nodes.new("ShaderNodeUVMap")
@@ -73,6 +75,11 @@ class _TreeBuilder:
         nodes = self.baker_node.node_tree.nodes
         links = self.baker_node.node_tree.links
 
+        # N.B. The target image is only stored on the internal tree's
+        # image node not on the BakerNode. BakerNode's target_image
+        # property just returns the image node's value.
+        target_image = self.baker_node.target_image
+
         self.refresh_sockets()
 
         nodes.clear()
@@ -84,7 +91,7 @@ class _TreeBuilder:
         group_output.name = NodeNames.group_output
         group_output.location.x += 500
 
-        self._add_baked_nodes()
+        self._add_baked_nodes(target_image)
 
         emission_shader = nodes.new("ShaderNodeEmission")
         emission_shader.name = NodeNames.emission_shader
@@ -189,3 +196,21 @@ def refresh_uv_map(baker_node) -> None:
     if baker_node.node_tree is not None:
         uv_node = baker_node.node_tree.nodes[NodeNames.baked_img_uv]
         uv_node.uv_map = baker_node.uv_map
+
+
+def get_target_image_node(baker_node,
+                          rebuild: bool = False
+                          ) -> Optional[bpy.types.ShaderNodeTexImage]:
+    """Returns the Image Texture node that stores the image target for
+    baker_node. If rebuild == True then the node tree will be rebuilt
+    if the image node cannot be found.
+    """
+    node_tree = baker_node.node_tree
+    if node_tree is None:
+        return None
+
+    image_node = node_tree.nodes.get(NodeNames.baked_img)
+    if image_node is None and rebuild:
+        rebuild_node_tree(baker_node)
+        image_node = node_tree.nodes[NodeNames.baked_img]
+    return image_node

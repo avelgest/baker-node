@@ -86,12 +86,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         update=lambda self, _: self._refresh_targets()
     )
 
-    target_image: PointerProperty(
-        type=bpy.types.Image,
-        name="Target Image",
-        description="The image to bake to",
-        update=lambda self, _: self._refresh_targets()
-    )
+    # N.B. A python property is used for target_image to prevent
+    # increasing the images user count.
 
     specific_bake_object: PointerProperty(
         type=bpy.types.Object,
@@ -203,10 +199,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         row = layout.row(align=True)
         if self.target_type == 'IMAGE_TEXTURES':
-            row.template_ID(self,
-                            "target_image",
-                            new="image.new",
-                            open="image.open")
+            image_node = internal_tree.get_target_image_node(self, True)
+            if image_node is not None:
+                row.template_ID(image_node, "image",
+                                new="image.new",
+                                open="image.open")
 
             # UV map
             if hasattr(mesh, "uv_layers"):
@@ -433,6 +430,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             self.target_image = value
         if self.target_type == 'VERTEX_COLORS':
             self.target_attribute = value if value is not None else ""
+
+    @property
+    def target_image(self) -> Optional[bpy.types.Image]:
+        """"The Image this node should bake to."""
+        image_node = internal_tree.get_target_image_node(self)
+        return image_node.image if image_node is not None else None
+
+    @target_image.setter
+    def target_image(self, image: Optional[bpy.types.Image]):
+        image_node = internal_tree.get_target_image_node(self, True)
+        image_node.image = image
 
     @property
     def node_tree_name(self) -> str:
