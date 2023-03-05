@@ -185,7 +185,7 @@ class _BakerNodeBaker:
         cycles_props.samples = baker_node.samples
         cycles_props.use_denoising = False
 
-        bake_props.target = self._bake_type
+        bake_props.target = baker_node.cycles_target_enum
         bake_props.use_clear = True
         bake_props.use_selected_to_active = False  # TODO ???
 

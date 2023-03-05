@@ -165,7 +165,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if not self.bake_in_progress:
             # Draw normal "Bake" button
             row.operator("node.bkn_bake_button", text="Bake")
-            if (self.target_type == 'IMAGE_TEXTURES'
+            if (self.cycles_target_enum == 'IMAGE_TEXTURES'
                     and self.target_image is not None):
                 # When using an image as the target draw buttons to
                 # pack or save the image.
@@ -203,7 +203,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                              results_are_suggestions=True)
             else:
                 layout.prop(self, "uv_map", icon="DOT")
-        else:
+        elif self.target_type == 'VERTEX_COLORS':
             if hasattr(mesh, "color_attributes"):
                 _prop_search(layout, self, "target_attribute",
                              mesh, "color_attributes",
@@ -422,18 +422,25 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     @property
     def bake_target(self) -> Optional[BakeTarget]:
-        if self.target_type == 'IMAGE_TEXTURES':
+        if self.cycles_target_enum == 'IMAGE_TEXTURES':
             return self.target_image
-        if self.target_type == 'VERTEX_COLORS':
-            return self.target_attribute or None
-        raise RuntimeError(f"Unsupported target type: f{self.target_type}")
+        return self.target_attribute or None
 
     @bake_target.setter
     def bake_target(self, value: Optional[BakeTarget]) -> None:
-        if self.target_type == 'IMAGE_TEXTURES':
+        if self.cycles_target_enum == 'IMAGE_TEXTURES':
             self.target_image = value
-        if self.target_type == 'VERTEX_COLORS':
+        else:
             self.target_attribute = value if value is not None else ""
+
+    @property
+    def cycles_target_enum(self) -> str:
+        """The value (str) of bpy.types.BakeSettings.target that should
+        be used. Either 'IMAGE_TEXTURES' or 'VERTEX_COLORS'.
+        """
+        if self.target_type == 'VERTEX_COLORS':
+            return 'VERTEX_COLORS'
+        return 'IMAGE_TEXTURES'
 
     @property
     def target_image(self) -> Optional[bpy.types.Image]:
