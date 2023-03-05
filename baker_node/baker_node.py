@@ -157,7 +157,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.node_tree is not None:
             bpy.data.node_groups.remove(self.node_tree)
 
-    def _draw_bake_button(self, layout: bpy.types.UILayout) -> None:
+    def _draw_bake_button(self, _context, layout: bpy.types.UILayout) -> None:
         """Draws the node's "Bake" button on layout."""
         row = layout.row(align=True)
         row.context_pointer_set("baker_node", self)
@@ -182,16 +182,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             # Bake is scheduled but not started
             row.operator("node.bkn_cancel_button")
 
-    def draw_buttons(self, context, layout):
-        prefs = get_prefs()
-
-        self._draw_bake_button(layout)
-
-        col = layout.column(align=True)
-        if prefs.supports_color_attributes:
-            col.prop(self, "target_type", text="")
-        col.prop(self, "input_type", text="")
-
+    def _draw_target_props(self, context, layout) -> None:
         if context.object is not None:
             mesh = context.object.data
         else:
@@ -219,6 +210,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                              text="", results_are_suggestions=True)
             else:
                 layout.prop(self, "target_attribute", text="", icon="DOT")
+
+    def draw_buttons(self, context, layout):
+        prefs = get_prefs()
+
+        # Draw the "Bake"/"Cancel" button
+        self._draw_bake_button(context, layout)
+
+        col = layout.column(align=True)
+        if prefs.supports_color_attributes:
+            col.prop(self, "target_type", text="")
+        col.prop(self, "input_type", text="")
+
+        self._draw_target_props(context, layout)
 
         row = layout.row()
         row.alignment = 'RIGHT'
