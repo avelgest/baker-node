@@ -13,8 +13,6 @@ class NodeNames:
     group_output = "Baker Node Group Output"
     emission_shader = "Baker Node Shader"
 
-    combine_rgb = "Baker Node Combine Color"
-
     baked_img_uv = "Baker Node Baked Image UV"
     baked_img = "Baker Node Baked Image"
     baked_attr = "Baker Node Baked Color Attribute"
@@ -58,9 +56,6 @@ class _TreeBuilder:
         node_tree = bpy.data.node_groups.new(tree_name, "ShaderNodeTree")
 
         node_tree.inputs.new(name="Color", type="NodeSocketColor")
-        node_tree.inputs.new(name="R", type="NodeSocketFloat")
-        node_tree.inputs.new(name="G", type="NodeSocketFloat")
-        node_tree.inputs.new(name="B", type="NodeSocketFloat")
 
         node_tree.outputs.new(name="Baked", type="NodeSocketColor")
         node_tree.outputs.new(name="Unbaked", type="NodeSocketColor")
@@ -73,14 +68,11 @@ class _TreeBuilder:
 
     def rebuild_node_tree(self) -> None:
         nodes = self.baker_node.node_tree.nodes
-        links = self.baker_node.node_tree.links
 
         # N.B. The target image is only stored on the internal tree's
         # image node not on the BakerNode. BakerNode's target_image
         # property just returns the image node's value.
         target_image = self.baker_node.target_image
-
-        self.refresh_sockets()
 
         nodes.clear()
 
@@ -99,36 +91,7 @@ class _TreeBuilder:
         emission_shader.location = group_output.location
         emission_shader.location.y -= 160
 
-        if hasattr(bpy.types, "ShaderNodeCombineColor"):
-            combine_rgb = nodes.new("ShaderNodeCombineColor")
-            combine_rgb.mode = 'RGB'
-        else:
-            combine_rgb = nodes.new("ShaderNodeCombineRGB")
-        combine_rgb.name = NodeNames.combine_rgb
-        combine_rgb.location = (160, -160)
-
-        links.new(combine_rgb.inputs[0], group_input.outputs["R"])
-        links.new(combine_rgb.inputs[1], group_input.outputs["G"])
-        links.new(combine_rgb.inputs[2], group_input.outputs["B"])
-
         self.link_nodes()
-
-    def refresh_sockets(self) -> None:
-        inputs = self.baker_node.inputs
-        input_type = self.baker_node.input_type
-
-        if input_type == 'COLOR':
-            for socket in inputs:
-                # Show only the Color input
-                socket.enabled = (socket.name == "Color")
-
-        elif input_type == 'SEPARATE_RGB':
-            for socket in inputs:
-                # Show only the "R", "G" and "B" sockets
-                socket.enabled = (socket.name in "RGB")
-
-        else:
-            raise ValueError(f"Unrecognised input_type: {input_type}")
 
     def refresh_targets(self):
         nodes = self.baker_node.node_tree.nodes
@@ -151,12 +114,7 @@ class _TreeBuilder:
         group_out_baked = nodes[NodeNames.group_output].inputs[0]
         group_out_unbaked = nodes[NodeNames.group_output].inputs[1]
 
-        if baker_node.input_type == 'COLOR':
-            unbaked_val_soc = nodes[NodeNames.group_input].outputs[0]
-        elif baker_node.input_type == 'SEPARATE_RGB':
-            unbaked_val_soc = nodes[NodeNames.combine_rgb].outputs[0]
-        else:
-            raise ValueError(f"Unknown input_type '{baker_node.input_type}'")
+        unbaked_val_soc = nodes[NodeNames.group_input].outputs[0]
 
         links.new(group_out_unbaked, unbaked_val_soc)
         links.new(nodes[NodeNames.emission_shader].inputs[0], unbaked_val_soc)

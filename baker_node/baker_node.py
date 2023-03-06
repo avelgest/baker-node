@@ -64,16 +64,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         update=lambda self, _: self._rebuild_node_tree()
     )
 
-    input_type: EnumProperty(
-        name="Input Type",
-        description="What input sockets this node should use",
-        items=(('COLOR', "Color",
-                "Use a single Color socket"),
-               ('SEPARATE_RGB', "Separate RGB",
-                "Use a separate scaler socket for each RGB channel")),
-        update=lambda self, _: self._rebuild_node_tree()
-    )
-
     bake_in_progress: BoolProperty(
         name="Bake Finished",
         description="True if this node has a pending or active bake job",
@@ -228,7 +218,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         col = layout.column(align=True)
         if prefs.supports_color_attributes:
             col.prop(self, "target_type", text="")
-        col.prop(self, "input_type", text="")
 
         self._draw_target_props(context, layout)
 
@@ -392,15 +381,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def _get_active_inputs(self) -> List[bpy.types.NodeSocket]:
         """Returns a list of the inputs that will be used in baking."""
-        if self.input_type == 'COLOR':
-            active = [self.inputs.get("Color")]
-        elif self.input_type == 'SEPARATE_RGB':
-            active = [self.inputs.get("R"),
-                      self.inputs.get("G"),
-                      self.inputs.get("B")]
-        if not all(active):
-            active = list(filter(None, active))
-        return active
+        return [self.inputs[0]]
 
     def _guess_should_bake_float(self) -> bool:
         """Returns whether this node should use a float target."""

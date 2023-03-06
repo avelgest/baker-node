@@ -154,20 +154,18 @@ class TestBakerNode(unittest.TestCase):
         # Check that the node's internal node tree has been deleted
         self.assertNotIn(node_tree_name, bpy.data.node_groups)
 
-    def test_2_2_input_sockets(self):
-        """Checks that the input sockets change with the input_type property"""
+    def test_2_2_sockets(self):
+        """Checks that the input/output sockets are correct."""
         baker_node = self.node_tree.nodes.new(BakerNode.bl_idname)
+        inputs = baker_node.inputs
+        outputs = baker_node.outputs
 
-        baker_node.input_type = 'COLOR'
-        active_inputs = [x for x in baker_node.inputs if x.enabled]
-        self.assertEqual(len(active_inputs), 1)
-        self.assertEqual(active_inputs[0].type, 'RGBA')
+        self.assertEqual(len(inputs), 1)
+        self.assertEqual(inputs[0].type, 'RGBA')
 
-        baker_node.input_type = 'SEPARATE_RGB'
-        active_inputs = [x for x in baker_node.inputs if x.enabled]
-        self.assertEqual(len(active_inputs), 3)
-        for x in active_inputs:
-            self.assertEqual(x.type, 'VALUE')
+        self.assertEqual(len(outputs), 2)
+        self.assertEqual(outputs[0].type, 'RGBA')
+        self.assertEqual(outputs[1].type, 'RGBA')
 
     @unittest.skipUnless(supports_temp_override, "No context temp_override")
     def test_2_3_duplicate(self):
@@ -201,7 +199,6 @@ class TestBakerNode(unittest.TestCase):
 
         self.assertFalse(baker_node.is_baked)
 
-        baker_node.input_type = 'COLOR'
         self._set_target(baker_node, img_target)
 
         self.assertEqual(baker_node.bake_target, img_target)
@@ -263,24 +260,6 @@ class TestBakerNode(unittest.TestCase):
 
         self.assertFalse(baker_node.is_baked)
         self.assertFalse(baker_node.bake_in_progress)
-
-    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
-    def test_4_1_sep_rgb(self):
-        baker_node = self._new_baker_node("sep_rgb_test")
-        baker_node.input_type = 'SEPARATE_RGB'
-
-        self._set_target(baker_node, self.attr_target_1)
-
-        baker_node.inputs["R"].default_value = 0.1
-        baker_node.inputs["G"].default_value = 0.2
-        baker_node.inputs["B"].default_value = 0.3
-
-        baker_node.perform_bake(immediate=True)
-
-        self.assertTrue(baker_node.is_baked)
-        self.assertFalse(baker_node.bake_in_progress)
-
-        self._assert_color_attr_equal(self.attr_target_1, (0.1, 0.2, 0.3, 1.0))
 
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
