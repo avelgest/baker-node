@@ -188,13 +188,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         else:
             mesh = None
 
-        row = layout.row(align=True)
         if self.target_type == 'IMAGE_TEXTURES':
             image_node = internal_tree.get_target_image_node(self, True)
             if image_node is not None:
-                row.template_ID(image_node, "image",
-                                new="image.new",
-                                open="image.open")
+                layout.template_ID(image_node, "image",
+                                   new="image.new",
+                                   open="image.open")
 
             # UV map
             if hasattr(mesh, "uv_layers"):
@@ -203,6 +202,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                              results_are_suggestions=True)
             else:
                 layout.prop(self, "uv_map", icon="DOT")
+
+            # Colorspace
+            if image_node is not None and image_node.image is not None:
+                row = layout.row()
+                row.enabled = not image_node.image.is_dirty
+                row.alignment = 'RIGHT'
+                row.prop(image_node.image.colorspace_settings, "name",
+                         text="Color Space")
+
         elif self.target_type == 'VERTEX_COLORS':
             if hasattr(mesh, "color_attributes"):
                 _prop_search(layout, self, "target_attribute",
