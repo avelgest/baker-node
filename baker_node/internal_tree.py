@@ -58,7 +58,6 @@ class _TreeBuilder:
         node_tree.inputs.new(name="Color", type="NodeSocketColor")
 
         node_tree.outputs.new(name="Baked", type="NodeSocketColor")
-        node_tree.outputs.new(name="Unbaked", type="NodeSocketColor")
 
         # Hide the default values of all inputs
         for in_socket in node_tree.inputs:
@@ -111,13 +110,8 @@ class _TreeBuilder:
         nodes = baker_node.node_tree.nodes
         links = baker_node.node_tree.links
 
-        group_out_baked = nodes[NodeNames.group_output].inputs[0]
-        group_out_unbaked = nodes[NodeNames.group_output].inputs[1]
-
-        unbaked_val_soc = nodes[NodeNames.group_input].outputs[0]
-
-        links.new(group_out_unbaked, unbaked_val_soc)
-        links.new(nodes[NodeNames.emission_shader].inputs[0], unbaked_val_soc)
+        links.new(nodes[NodeNames.emission_shader].inputs[0],
+                  nodes[NodeNames.group_input].outputs[0])
 
         if baker_node.target_type == 'IMAGE_TEXTURES':
             baked_val_soc = nodes[NodeNames.baked_img].outputs[0]
@@ -125,7 +119,8 @@ class _TreeBuilder:
             baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]
         else:
             raise ValueError(f"Unknown target type '{baker_node.target_type}'")
-        links.new(group_out_baked, baked_val_soc)
+
+        links.new(nodes[NodeNames.group_output].inputs[0], baked_val_soc)
 
 
 def create_node_tree_for(baker_node) -> ShaderNodeTree:
