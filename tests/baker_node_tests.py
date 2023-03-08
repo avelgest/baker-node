@@ -260,6 +260,41 @@ class TestBakerNode(unittest.TestCase):
         self.assertFalse(baker_node.is_baked)
         self.assertFalse(baker_node.bake_in_progress)
 
+    def test_3_3_img_plane_bake(self):
+        get_prefs().background_baking = False
+
+        baker_node = self._new_baker_node("img_plane_bake_test")
+        img_target = self.img_target
+
+        self._set_target(baker_node, img_target)
+        baker_node.target_type = 'IMAGE_TEX_PLANE'
+        baker_node.target_plane_align = 'XY'
+
+        self.assertEqual(baker_node.bake_target, img_target)
+
+        value_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        value_node.outputs[0].default_value = (0.5, 0.5, 0.5, 1.0)
+        self.node_tree.links.new(baker_node.inputs[0], value_node.outputs[0])
+
+        # Since background_baking is False this should bake immediately
+        baker_node.schedule_bake()
+
+        self.assertTrue(baker_node.is_baked)
+        self.assertFalse(baker_node.bake_in_progress)
+
+        px_color = self._get_pixels_rgb(img_target)
+
+        for x in px_color:
+            self.assertAlmostEqual(x, 0.5, delta=0.01)
+
+        # Test freeing the bake
+        baker_node.free_bake()
+
+        self.assertFalse(baker_node.is_baked)
+        self.assertFalse(baker_node.bake_in_progress)
+
+        baker_node.target_image = None
+
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_5_1_synced_nodes(self):

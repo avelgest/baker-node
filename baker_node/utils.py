@@ -37,16 +37,34 @@ def get_node_by_attr(nodes,
     return None
 
 
-def get_node_tree_ma(node_tree: bpy.types.ShaderNodeTree
+def get_node_tree_ma(node_tree: bpy.types.ShaderNodeTree,
+                     objs: Optional[typing.Iterable[bpy.types.Object]] = None,
+                     search_groups: bool = False
                      ) -> Optional[bpy.types.Material]:
     """Returns the material that uses the ShaderNodeTree node_tree or
-    None if no material can be found.
+    None if no material can be found. If objs is an iterable then only
+    the bpy.types.Object instances inside are searched. If
+    search_groups == True then also search Group nodes.
     """
     if node_tree is None:
         raise TypeError("Expected a ShaderNodeTree found None")
-    for ma in bpy.data.materials:
+    if objs:
+        materials = {ma_slot.material for obj in objs
+                     for ma_slot in obj.material_slots
+                     if ma_slot.material}
+    else:
+        materials = bpy.data.materials
+
+    for ma in materials:
         if ma.node_tree == node_tree:
             return ma
+
+    if search_groups:
+        for ma in materials:
+            for node in ma.node_tree.nodes:
+                if (node.bl_idname == "ShaderNodeGroup"
+                        and node.node_tree == node_tree):
+                    return ma
     return None
 
 

@@ -113,7 +113,7 @@ class _TreeBuilder:
         links.new(nodes[NodeNames.emission_shader].inputs[0],
                   nodes[NodeNames.group_input].outputs[0])
 
-        if baker_node.target_type == 'IMAGE_TEXTURES':
+        if baker_node.target_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
             baked_val_soc = nodes[NodeNames.baked_img].outputs[0]
         elif baker_node.target_type == 'VERTEX_COLORS':
             baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]

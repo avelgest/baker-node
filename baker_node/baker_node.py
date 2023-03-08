@@ -56,8 +56,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     target_type: EnumProperty(
         name="Bake Mode",
         description="The type of target to bake to",
-        items=(('IMAGE_TEXTURES', "Image", "Bake to an image using a "
+        items=(('IMAGE_TEXTURES', "Image (UV)", "Bake to an image using a "
                 "UV-mapped object"),
+               ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an axis-aligned "
+                "plane"),
                ('VERTEX_COLORS', "Color Attribute",
                 "Bake to a color attribute on a mesh")),
         default='IMAGE_TEXTURES',
@@ -74,6 +76,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         name="Target Attribute",
         description="The color attribute to bake to",
         update=lambda self, _: self._refresh_targets()
+    )
+
+    # For target_type == IMAGE_TEX_PLANE
+    target_plane_align: EnumProperty(
+        name="Alignment",
+        description="Which axes to align the plane to",
+        items=(('XY', "XY", ""),
+               ('XZ', "XZ", ""),
+               ('YZ', "YZ", ""))
     )
 
     # N.B. A python property is used for target_image to prevent
@@ -178,20 +189,24 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         else:
             mesh = None
 
-        if self.target_type == 'IMAGE_TEXTURES':
+        if self.target_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
             image_node = internal_tree.get_target_image_node(self, True)
             if image_node is not None:
                 layout.template_ID(image_node, "image",
                                    new="image.new",
                                    open="image.open")
 
-            # UV map
-            if hasattr(mesh, "uv_layers"):
-                _prop_search(layout, self, "uv_map",
-                             mesh, "uv_layers",
-                             results_are_suggestions=True)
+            if self.target_type == 'IMAGE_TEXTURES':
+                # UV map
+                if hasattr(mesh, "uv_layers"):
+                    _prop_search(layout, self, "uv_map",
+                                 mesh, "uv_layers",
+                                 results_are_suggestions=True)
+                else:
+                    layout.prop(self, "uv_map", icon="DOT")
             else:
-                layout.prop(self, "uv_map", icon="DOT")
+                # Plane axes
+                layout.prop(self, "target_plane_align")
 
             # Colorspace
             if image_node is not None and image_node.image is not None:
@@ -403,7 +418,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         active = bpy.context.active_object
         if active is not None and active.type == 'MESH':
-            return bpy.context.active_object
+            return active
         if bpy.context.selected_objects:
             return next((x for x in bpy.context.selected_objects
                          if x.type == 'MESH'), None)

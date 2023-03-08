@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import contextlib
+import warnings
 
 import bpy
 
@@ -34,10 +35,6 @@ class _BakerNodeBaker:
 
         self._ma_output_node = None
 
-        if self._bake_type not in ('IMAGE_TEXTURES', 'VERTEX_COLORS'):
-            raise ValueError("Expected baker_node.target_type to be in "
-                             "{'IMAGE_TEXTURES', 'VERTEX_COLORS'}")
-
     def _init_ma_output_node(self, exit_stack) -> None:
         """Creates a Material Output node and connects it to socket."""
         node_tree = self.baker_node.node_tree
@@ -61,13 +58,45 @@ class _BakerNodeBaker:
 
         exit_stack.callback(clean_up)
 
+    def _init_plane(self, exit_stack) -> None:
+        mesh = bpy.data.meshes.new("Baker Node Plane")
+        mesh.from_pydata(
+            vertices=[(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)],
+            edges=[(0, 1), (1, 2), (2, 3), (3, 0)],
+            faces=[(0, 1, 2, 3)]
+        )
+        if mesh.validate(verbose=True):
+            warnings.warn(f"{mesh.name} initialized with invalid geometry")
+
+        mesh.uv_layers.new(name=self._uv_layer, do_init=True)
+
+        ma = utils.get_node_tree_ma(self.baker_node.id_data,
+                                    objs=[self._object],
+                                    search_groups=True)
+        if ma is None:
+            raise RuntimeError("Cannot find material for baker node")
+
+        plane = bpy.data.objects.new(".Baker Node Plane", mesh)
+        plane.active_material = ma
+        bpy.context.scene.collection.objects.link(plane)
+
+        self._object = plane
+
+        plane_name = plane.name
+
+        def clean_up():
+            plane = bpy.data.objects.get(plane_name)
+            if plane is not None:
+                bpy.data.meshes.remove(plane.data)
+        exit_stack.callback(clean_up)
+
     def _setup_target(self, exit_stack) -> None:
         # Node tree in which to place any nodes needed for setting the
         # bake target
         target_tree = self._target_tree
         get_target_tree = utils.safe_node_tree_getter(target_tree)
 
-        if self._bake_type == 'IMAGE_TEXTURES':
+        if self._bake_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
             target = self.baker_node.target_image
             target_node = target_tree.nodes.new("ShaderNodeTexImage")
 
@@ -78,6 +107,9 @@ class _BakerNodeBaker:
             target_node.label = "Bake Target"
             target_node.hide = True
             target_tree.nodes.active = target_node
+
+            if self._bake_type == 'IMAGE_TEX_PLANE':
+                self._init_plane(exit_stack)
 
         elif self._bake_type == 'VERTEX_COLORS':
             mesh = self._object.data
@@ -104,7 +136,7 @@ class _BakerNodeBaker:
         def clean_up():
             target_tree = get_target_tree()
             if target_tree is not None:
-                if self._bake_type == 'IMAGE_TEXTURES':
+                if self._bake_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
                     target_node = target_tree.nodes.get(target_node_name)
                     if target_node is not None:
                         target_tree.nodes.remove(target_node)
@@ -145,9 +177,9 @@ class _BakerNodeBaker:
 
         with contextlib.ExitStack() as exit_stack:
 
-            self._set_selection(exit_stack)
             self._setup_target(exit_stack)
             self._init_ma_output_node(exit_stack)
+            self._set_selection(exit_stack)
 
             self._set_bake_settings(exit_stack)
 
@@ -202,6 +234,8 @@ class _BakerNodeBaker:
     @property
     def _uv_layer(self) -> str:
         """The UV map to use for baking."""
+        if self._bake_type == 'IMAGE_TEX_PLANE':
+            return "UVMap"
         uv_map = self.baker_node.uv_map
         if (uv_map not in self._object.data.uv_layers
                 or not self._bake_type == 'IMAGE_TEXTURES'):
