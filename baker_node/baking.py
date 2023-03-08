@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import contextlib
+import math
 import warnings
 
 import bpy
 
 from bpy.types import NodeSocket
+from mathutils import Matrix
 
 from . import utils
 from .internal_tree import NodeNames
@@ -59,9 +61,14 @@ class _BakerNodeBaker:
         exit_stack.callback(clean_up)
 
     def _init_plane(self, exit_stack) -> None:
+        align = self.baker_node.target_plane_align
+
         mesh = bpy.data.meshes.new("Baker Node Plane")
         mesh.from_pydata(
-            vertices=[(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)],
+            # Add a vertex at (0, 0, +/-1) to ensure the plane's
+            # coordinates lie on the axes e.g (x, y, 0) for 'XY'
+            vertices=[(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0),
+                      (0, 0, -1 if align == 'XZ' else 1)],
             edges=[(0, 1), (1, 2), (2, 3), (3, 0)],
             faces=[(0, 1, 2, 3)]
         )
@@ -70,18 +77,18 @@ class _BakerNodeBaker:
 
         mesh.uv_layers.new(name=self._uv_layer, do_init=True)
 
-        ma = utils.get_node_tree_ma(self.baker_node.id_data,
-                                    objs=[self._object],
-                                    search_groups=True)
-        if ma is None:
-            raise RuntimeError("Cannot find material for baker node")
+        # Align the plane to the target axes. The plane's normal should
+        # face either Front (-Y), Right (X) or Top (Z).
+        if align != 'XY':
+            mesh.transform(Matrix.Rotation(math.pi/2, 4, 'X'))
+            if align == 'YZ':
+                mesh.transform(Matrix.Rotation(math.pi/2, 4, 'Z'))
 
+        # Add the plane object
         plane = bpy.data.objects.new(".Baker Node Plane", mesh)
-        plane.active_material = ma
         bpy.context.scene.collection.objects.link(plane)
 
-        self._object = plane
-
+        # Clean up callback
         plane_name = plane.name
 
         def clean_up():
@@ -89,6 +96,17 @@ class _BakerNodeBaker:
             if plane is not None:
                 bpy.data.meshes.remove(plane.data)
         exit_stack.callback(clean_up)
+
+        # Set the plane to use the material containing the baker node
+        ma = utils.get_node_tree_ma(self.baker_node.id_data,
+                                    objs=[self._object],
+                                    search_groups=True)
+        if ma is None:
+            raise RuntimeError("Cannot find material for baker node")
+        plane.active_material = ma
+
+        # Use the plane as the bake object
+        self._object = plane
 
     def _setup_target(self, exit_stack) -> None:
         # Node tree in which to place any nodes needed for setting the
