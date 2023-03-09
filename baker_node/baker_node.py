@@ -482,8 +482,22 @@ def bkn_node_context_menu_func(self, context):
                for x in context.selected_nodes):
         return
 
-    self.layout.separator()
-    self.layout.operator("node.bkn_bake_nodes")
+    layout = self.layout
+    layout.separator()
+    layout.operator("node.bkn_bake_nodes")
+
+    active_node = context.active_node
+    if (active_node is not None
+            and active_node.bl_idname == BakerNode.bl_idname):
+
+        if active_node.cycles_target_enum == 'IMAGE_TEXTURES':
+            col = layout.column(align=True)
+            col.operator_context = 'INVOKE_DEFAULT'
+            col.context_pointer_set("edit_image", active_node.target_image)
+            col.enabled = active_node.target_image is not None
+
+            col.operator("image.save")
+            col.operator("image.reload", text="Discard Image Changes")
 
 
 def register():
