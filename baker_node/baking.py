@@ -171,25 +171,6 @@ class _BakerNodeBaker:
 
         exit_stack.callback(clean_up)
 
-    def _set_selection(self, exit_stack) -> None:
-        bake_object_name = self._object.name
-        selected_obj_names = [x.name for x in bpy.context.selected_objects]
-
-        for obj in bpy.context.selected_objects:
-            obj.select_set(False)
-        self._object.select_set(True)
-
-        def clean_up():
-            obj = bpy.data.objects.get(bake_object_name)
-            if obj is not None:
-                obj.select_set(False)
-
-            for obj_name in selected_obj_names:
-                obj = bpy.data.objects.get(obj_name)
-                if obj is not None:
-                    obj.select_set(True)
-        exit_stack.callback(clean_up)
-
     def bake(self, immediate: bool = False) -> None:
         exec_ctx = 'EXEC_DEFAULT'if immediate else 'INVOKE_DEFAULT'
 
@@ -197,18 +178,21 @@ class _BakerNodeBaker:
 
             self._setup_target(exit_stack)
             self._init_ma_output_node(exit_stack)
-            self._set_selection(exit_stack)
-
             self._set_bake_settings(exit_stack)
 
-            bpy.ops.object.bake(exec_ctx,
-                                type='EMIT',
-                                uv_layer=self._uv_layer)
+            op_caller = utils.OpCaller(bpy.context,
+                                       active=self._object,
+                                       active_object=self._object,
+                                       selected_objects=[self._object])
+
+            op_caller.call(bpy.ops.object.bake, exec_ctx,
+                           type='EMIT',
+                           uv_layer=self._uv_layer)
 
             if exec_ctx == 'INVOKE_DEFAULT':
                 delayed_stack = exit_stack.pop_all()
                 bpy.app.timers.register(delayed_stack.close,
-                                        first_interval=0.3)
+                                        first_interval=0.1)
 
     def _set_bake_settings(self, exit_stack: contextlib.ExitStack) -> None:
         scene = bpy.context.scene
