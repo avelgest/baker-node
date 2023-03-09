@@ -164,6 +164,39 @@ def suffix_num_unique_in(basename: str,
             return name
 
 
+class OpCaller:
+    """Class that can call operators using the provided context and
+    context override keyword args. Uses Context.temp_override when
+    available and falls back on passing a dict.
+    """
+    def __init__(self, context, **keywords):
+        self._context = context
+        self.keywords = keywords
+
+    def call(self, op: typing.Union[str, callable],
+             exec_ctx: str = 'EXEC_DEFAULT',
+             undo: Optional[bool] = None, **props
+             ) -> typing.Set[str]:
+        """Calls operator op using this OpCaller's context and the
+        props provided. op may be either a callable operator or
+        the bl_idname of an operator. Returns the result of the operator
+        call as a set.
+        """
+        if isinstance(op, str):
+            submod, name = op.split(".", 1)
+            op = getattr(getattr(bpy.ops, submod), name)
+
+        args = [exec_ctx] if undo is None else [exec_ctx, undo]
+
+        if hasattr(self._context, "temp_override"):
+            with self._context.temp_override(**self.keywords):
+                return op(*args, **props)
+        else:
+            ctx_dict = self._context.copy()
+            ctx_dict.update(self.keywords)
+            return op(ctx_dict, *args, **props)
+
+
 class TempChanges:
     """Context manager that allows attributes to be temporarily added
     or modified on an object. All changes are reverted when the context
