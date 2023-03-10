@@ -70,7 +70,11 @@ class BKN_OT_bake_button(BakerNodeButtonBase, Operator):
             self.report({'WARNING'}, "No baking target set")
             return {'CANCELLED'}
 
-        baker_node.schedule_bake()
+        try:
+            baker_node.schedule_bake()
+        except BakerNode.ScheduleBakeError as e:
+            self.report({'WARNING'}, str(e))
+            return {'CANCELLED'}
         return {'FINISHED'}
 
 
@@ -117,7 +121,10 @@ class BKN_OT_bake_nodes(Operator):
             return {'CANCELLED'}
 
         for baker_node in baker_nodes:
-            self._schedule_bake(baker_node)
+            try:
+                self._schedule_bake(baker_node)
+            except BakerNode.ScheduleBakeError as e:
+                self.report({'WARNING'}, str(e))
 
         return {'FINISHED'}
 

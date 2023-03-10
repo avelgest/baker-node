@@ -117,6 +117,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         update=lambda self, _: self._refresh_uv_map()
     )
 
+    class ScheduleBakeError(RuntimeError):
+        """Raised by BakerNode.schedule_bake if it fails."""
+
     @classmethod
     def poll(cls, node_tree):
         return node_tree.type == 'SHADER'
@@ -263,13 +266,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def schedule_bake(self) -> None:
         if self.bake_in_progress:
-            return
+            raise self.ScheduleBakeError("A bake is already in progress for "
+                                         "this node.")
 
         if self.bake_target is None:
             if get_prefs().auto_create_targets:
                 self.auto_create_target()
             if self.bake_target is None:
-                return
+                msg = ("Could not automatically create bake target"
+                       if get_prefs().auto_create_targets
+                       else "No bake target set")
+                raise self.ScheduleBakeError(msg)
 
         self.bake_in_progress = True
         bake_queue.add_bake_job(self)
@@ -323,7 +330,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             if not node.mute:
                 with node.prevent_sync():
                     if self.is_baked:
-                        node.schedule_bake()
+                        try:
+                            node.schedule_bake()
+                        except self.ScheduleBakeError:
+                            pass
                     else:
                         node.free_bake()
 
