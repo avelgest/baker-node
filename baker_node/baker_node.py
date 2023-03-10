@@ -342,7 +342,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if not self.sync:
             return []
         return [x for x in self.id_data.nodes
-                if isinstance(x, BakerNode)
+                if x.bl_idname == BakerNode.bl_idname
                 and x.sync
                 and x.identifier != self.identifier]
 

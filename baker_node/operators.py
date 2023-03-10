@@ -17,7 +17,7 @@ def _baker_node_active(context) -> bool:
     a baker node. False otherwise.
     """
     active = getattr(context, "active_node", None)
-    return active is not None and isinstance(active, BakerNode)
+    return active is not None and active.bl_idname == BakerNode.bl_idname
 
 
 def _baker_node_selected(context) -> bool:
@@ -25,7 +25,8 @@ def _baker_node_selected(context) -> bool:
     those nodes are baker nodes.
     """
     selected = getattr(context, "selected_nodes", None)
-    return selected and any(isinstance(x, BakerNode) for x in selected)
+    return (selected is not None
+            and any(x.bl_idname == BakerNode.bl_idname for x in selected))
 
 
 def _get_active_or_selected_baker_nodes(context) -> typing.Set[BakerNode]:
