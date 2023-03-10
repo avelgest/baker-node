@@ -135,9 +135,38 @@ class BKN_OT_bake_nodes(Operator):
             baker_node.schedule_bake()
 
 
+class BKN_OT_mute_all_toggle(Operator):
+    bl_idname = "node.bkn_mute_all"
+    bl_label = "Mute All Bakers (Toggle)"
+    bl_description = "Mutes/unmutes all Baker nodes in this node tree"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        space = context.space_data
+        node_tree = getattr(space, "edit_tree", None)
+        return (node_tree is not None
+                and getattr(space, "shader_type", "") == "OBJECT")
+
+    def execute(self, context):
+        node_tree = context.space_data.edit_tree
+        bakers = [x for x in node_tree.nodes
+                  if x.bl_idname == BakerNode.bl_idname]
+        if not bakers:
+            return {'CANCELLED'}
+
+        # Mute if there are any unmuted nodes else unmute
+        mute = not all(x.mute for x in bakers)
+        for node in bakers:
+            node.mute = mute
+
+        return {'FINISHED'}
+
+
 classes = (BKN_OT_bake_button,
            BKN_OT_free_bake_button,
            BKN_OT_cancel_button,
-           BKN_OT_bake_nodes)
+           BKN_OT_bake_nodes,
+           BKN_OT_mute_all_toggle)
 
 register, unregister = bpy.utils.register_classes_factory(classes)

@@ -495,7 +495,9 @@ def bkn_node_context_menu_func(self, context):
     layout = self.layout
     layout.separator()
     layout.operator("node.bkn_bake_nodes")
+    layout.operator("node.bkn_mute_all")
 
+    # Only show if the active node is a BakerNode
     active_node = context.active_node
     if (active_node is not None
             and active_node.bl_idname == BakerNode.bl_idname):
