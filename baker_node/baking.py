@@ -2,6 +2,7 @@
 
 import contextlib
 import math
+import time
 import warnings
 
 import bpy
@@ -190,9 +191,22 @@ class _BakerNodeBaker:
                            uv_layer=self._uv_layer)
 
             if exec_ctx == 'INVOKE_DEFAULT':
-                delayed_stack = exit_stack.pop_all()
-                bpy.app.timers.register(delayed_stack.close,
-                                        first_interval=0.1)
+                self._delay_stack_close(exit_stack)
+
+    def _delay_stack_close(self, exit_stack: contextlib.ExitStack) -> None:
+        delayed_stack = exit_stack.pop_all()
+        time_started = time.process_time()
+
+        def delayed_stack_close():
+            time_elapsed = time.process_time() - time_started
+            if (bpy.app.is_job_running('OBJECT_BAKE')
+                    or time_elapsed > 20):
+                delayed_stack.close()
+                return None
+
+            return 0.2
+        bpy.app.timers.register(delayed_stack_close,
+                                first_interval=0.2)
 
     def _set_bake_settings(self, exit_stack: contextlib.ExitStack) -> None:
         scene = bpy.context.scene
