@@ -5,14 +5,15 @@ import math
 import time
 import warnings
 
+from typing import Optional
+
 import bpy
 
 from bpy.types import NodeSocket
 from mathutils import Matrix
 
+from . import internal_tree
 from . import utils
-from .internal_tree import NodeNames
-from .utils import TempChanges
 
 
 class _BakerNodeBaker:
@@ -36,20 +37,21 @@ class _BakerNodeBaker:
         # Node tree in which to place the bake target node
         self._target_tree = baker_node.id_data
 
-        self._ma_output_node = None
+        self._exit_stack: Optional[contextlib.ExitStack] = None
 
-    def _init_ma_output_node(self, exit_stack) -> None:
-        """Creates a Material Output node and connects it to socket."""
+    def _init_ma_output_node(self) -> None:
+        """Creates a Material Output node and connects it to the socket
+        that should be baked.
+        """
         node_tree = self.baker_node.node_tree
-        socket = self._bake_socket
 
-        self._ma_output_node = node_tree.nodes.new("ShaderNodeOutputMaterial")
-        self._ma_output_node.name = self.MA_OUTPUT_NAME
-        self._ma_output_node.target = 'CYCLES'
+        ma_output_node = node_tree.nodes.new("ShaderNodeOutputMaterial")
+        ma_output_node.name = self.MA_OUTPUT_NAME
+        ma_output_node.target = 'CYCLES'
 
-        node_tree.links.new(self._ma_output_node.inputs[0], socket)
+        node_tree.links.new(ma_output_node.inputs[0], self._bake_socket)
 
-        ma_out_node_name = self._ma_output_node.name
+        ma_out_node_name = ma_output_node.name
         get_node_tree = utils.safe_node_tree_getter(node_tree)
 
         def clean_up():
@@ -59,9 +61,10 @@ class _BakerNodeBaker:
                 if ma_out_node is not None:
                     node_tree.nodes.remove(ma_out_node)
 
-        exit_stack.callback(clean_up)
+        self._exit_stack.callback(clean_up)
 
-    def _init_plane(self, exit_stack) -> None:
+    def _init_plane(self) -> None:
+        """Initializes the plane used for the Image (Plane) target type."""
         align = self.baker_node.target_plane_align
 
         mesh = bpy.data.meshes.new("Baker Node Plane")
@@ -96,7 +99,7 @@ class _BakerNodeBaker:
             plane = bpy.data.objects.get(plane_name)
             if plane is not None:
                 bpy.data.meshes.remove(plane.data)
-        exit_stack.callback(clean_up)
+        self._exit_stack.callback(clean_up)
 
         # Set the plane to use the material containing the baker node
         ma = utils.get_node_tree_ma(self.baker_node.id_data,
@@ -109,77 +112,89 @@ class _BakerNodeBaker:
         # Use the plane as the bake object
         self._object = plane
 
-    def _setup_target(self, exit_stack) -> None:
+    def _setup_target(self) -> None:
+        if self._bake_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
+            self._setup_target_image()
+
+        elif self._bake_type == 'VERTEX_COLORS':
+            self._setup_target_attr()
+
+    def _setup_target_attr(self) -> None:
+        """Sets the baker node's target_attribute as the bake target."""
+        mesh = self._object.data
+        if not hasattr(mesh, "color_attributes"):
+            raise TypeError(f"{self._object.name}'s data does not support "
+                            f"color attributes (type: {self._object.type})")
+
+        target_name = self.baker_node.target_attribute
+        target = mesh.color_attributes.get(target_name)
+
+        if target is None:
+            # Create the missing color attribute
+            # TODO get type/domain from baker_node
+            target = mesh.color_attributes.new(target_name, 'FLOAT_COLOR',
+                                               'CORNER')
+
+        old_active = mesh.color_attributes.active_color
+        old_active_name = old_active.name if old_active else ""
+
+        mesh.color_attributes.active_color = target
+
+        mesh_name = mesh.name
+
+        def clean_up():
+            mesh = bpy.data.meshes.get(mesh_name)
+            if mesh is not None:
+                old_active = mesh.color_attributes.get(old_active_name)
+                mesh.color_attributes.active = old_active
+        self._exit_stack.callback(clean_up)
+
+    def _setup_target_image(self) -> None:
+        """Sets the baker node's target_image as the bake target."""
         # Node tree in which to place any nodes needed for setting the
         # bake target
         target_tree = self._target_tree
+
+        target = self.baker_node.target_image
+        target_node = target_tree.nodes.new("ShaderNodeTexImage")
+
+        target_node_name = target_node.name
+        old_active_name = getattr(target_tree.nodes.active, "name", "")
+
+        target_node.image = target
+        target_node.label = "Bake Target"
+        target_node.hide = True
+        target_node.select = True
+        target_tree.nodes.active = target_node
+
+        if self._bake_type == 'IMAGE_TEX_PLANE':
+            self._init_plane()
+
         get_target_tree = utils.safe_node_tree_getter(target_tree)
-
-        if self._bake_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
-            target = self.baker_node.target_image
-            target_node = target_tree.nodes.new("ShaderNodeTexImage")
-
-            target_node_name = target_node.name
-            old_active_name = getattr(target_tree.nodes.active, "name", "")
-
-            target_node.image = target
-            target_node.label = "Bake Target"
-            target_node.hide = True
-            target_tree.nodes.active = target_node
-
-            if self._bake_type == 'IMAGE_TEX_PLANE':
-                self._init_plane(exit_stack)
-
-        elif self._bake_type == 'VERTEX_COLORS':
-            mesh = self._object.data
-            if not hasattr(mesh, "color_attributes"):
-                # TODO warn / raise error?
-                return
-
-            mesh_name = mesh.name
-
-            target_name = self.baker_node.target_attribute
-            target = mesh.color_attributes.get(target_name)
-
-            if target is None:
-                # Create the missing color attribute
-                # TODO get type/domain from baker_node
-                target = mesh.color_attributes.new(target_name, 'FLOAT_COLOR',
-                                                   'CORNER')
-
-            old_active = mesh.color_attributes.active_color
-            old_active_name = old_active.name if old_active else ""
-
-            mesh.color_attributes.active_color = target
 
         def clean_up():
             target_tree = get_target_tree()
             if target_tree is not None:
-                if self._bake_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
-                    target_node = target_tree.nodes.get(target_node_name)
-                    if target_node is not None:
-                        target_tree.nodes.remove(target_node)
+                target_node = target_tree.nodes.get(target_node_name)
+                if target_node is not None:
+                    target_tree.nodes.remove(target_node)
 
-                    old_active = target_tree.nodes.get(old_active_name)
-                    if old_active is not None:
-                        target_tree.nodes.active = old_active
-
-                if self._bake_type == 'VERTEX_COLORS':
-                    mesh = bpy.data.meshes.get(mesh_name)
-                    if mesh is not None:
-                        old_active = mesh.color_attributes.get(old_active_name)
-                        mesh.color_attributes.active = old_active
-
-        exit_stack.callback(clean_up)
+                old_active = target_tree.nodes.get(old_active_name)
+                if old_active is not None:
+                    target_tree.nodes.active = old_active
+        self._exit_stack.callback(clean_up)
 
     def bake(self, immediate: bool = False) -> None:
+        """Perform the bake. If immediate is False then the bake will
+        run in the background (if supported).
+        """
         exec_ctx = 'EXEC_DEFAULT'if immediate else 'INVOKE_DEFAULT'
 
-        with contextlib.ExitStack() as exit_stack:
+        with contextlib.ExitStack() as self._exit_stack:
 
-            self._setup_target(exit_stack)
-            self._init_ma_output_node(exit_stack)
-            self._set_bake_settings(exit_stack)
+            self._setup_target()
+            self._init_ma_output_node()
+            self._set_bake_settings()
 
             op_caller = utils.OpCaller(bpy.context,
                                        active=self._object,
@@ -191,10 +206,15 @@ class _BakerNodeBaker:
                            uv_layer=self._uv_layer)
 
             if exec_ctx == 'INVOKE_DEFAULT':
-                self._delay_stack_close(exit_stack)
+                self._delay_exit_stack_close()
 
-    def _delay_stack_close(self, exit_stack: contextlib.ExitStack) -> None:
-        delayed_stack = exit_stack.pop_all()
+        self._exit_stack = None
+
+    def _delay_exit_stack_close(self) -> None:
+        """Delay the close of the _BakerNodeBaker's exit_stack until
+        the bake has actually started.
+        """
+        delayed_stack = self._exit_stack.pop_all()
         time_started = time.process_time()
 
         def delayed_stack_close():
@@ -208,16 +228,17 @@ class _BakerNodeBaker:
         bpy.app.timers.register(delayed_stack_close,
                                 first_interval=0.2)
 
-    def _set_bake_settings(self, exit_stack: contextlib.ExitStack) -> None:
+    def _set_bake_settings(self) -> None:
         scene = bpy.context.scene
         baker_node = self.baker_node
+        exit_stack = self._exit_stack
 
         render_props = exit_stack.enter_context(
-                        TempChanges(scene.render, False))
+                        utils.TempChanges(scene.render, False))
         cycles_props = exit_stack.enter_context(
-                        TempChanges(scene.cycles, False))
+                        utils.TempChanges(scene.cycles, False))
         bake_props = exit_stack.enter_context(
-                        TempChanges(scene.render.bake, False))
+                        utils.TempChanges(scene.render.bake, False))
 
         if render_props.engine != 'CYCLES':
             # Setting as CYCLES again can cause issues during UI-less
@@ -240,7 +261,7 @@ class _BakerNodeBaker:
     @property
     def _bake_socket(self) -> NodeSocket:
         nodes = self.baker_node.node_tree.nodes
-        emit_node = nodes.get(NodeNames.emission_shader)
+        emit_node = nodes.get(internal_tree.NodeNames.emission_shader)
         return emit_node.outputs[0]
 
     @property
