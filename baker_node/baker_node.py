@@ -17,10 +17,10 @@ from bpy.props import (BoolProperty,
                        StringProperty)
 
 from . import bake_queue
+from . import baking
 from . import internal_tree
 from . import utils
 
-from .baking import perform_baker_node_bake
 from .preferences import get_prefs
 
 
@@ -187,6 +187,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             row.operator("node.bkn_cancel_button")
 
     def _draw_target_props(self, context, layout) -> None:
+        """Draw target_type and related properties."""
         if context.object is not None:
             mesh = context.object.data
         else:
@@ -249,12 +250,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         self.draw_buttons(context, layout)
 
-    def insert_link(self, link):
-        pass
-
-    def update(self):
-        pass
-
     def _rebuild_node_tree(self) -> None:
         internal_tree.rebuild_node_tree(self)
 
@@ -265,6 +260,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         internal_tree.refresh_uv_map(self)
 
     def schedule_bake(self) -> None:
+        """Schedule this node for baking. If background baking is
+        disabled then this will bake the node immediately. Otherwise
+        this will add a job to the add-on's BakeQueue instance.
+        Raises a BakerNode.ScheduleBakeError if this baker cannot
+        currently be baked (e.g. has an invalid target).
+        """
         if self.bake_in_progress:
             raise self.ScheduleBakeError("A bake is already in progress for "
                                          "this node.")
@@ -285,16 +286,23 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
-                     immediate: bool = False) -> None:
+                     background: bool = True) -> None:
+        """Bake this baker node. This bypasses the BakeQueue and
+        attempts the bake immediately. If background is True then the
+        bake will run in the background (if supported).
+        """
         self.bake_in_progress = True
 
+        if background and not get_prefs().supports_background_baking:
+            background = False
+
         try:
-            perform_baker_node_bake(self, obj, immediate)
+            baking.perform_baker_node_bake(self, obj, immediate=not background)
         except Exception as e:
             self.on_bake_cancel()
             raise e
 
-        if immediate or not get_prefs().supports_background_baking:
+        if not background:
             self.on_bake_complete()
 
     def on_bake_complete(self) -> None:
@@ -314,6 +322,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.bake_in_progress = False
 
     def cancel_bake(self) -> None:
+        """Delete all bake jobs from this baker node (this will not
+        cancel a job that has already started).
+        """
         bake_queue.cancel_bake_jobs(self)
 
     def free_bake(self) -> None:
@@ -436,6 +447,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     @property
     def bake_target(self) -> Optional[BakeTarget]:
+        """The target to bake to. The type returned depends on this
+        nodes target type (str for color attributes or Image for image
+        textures). May return None if this node has no target.
+        """
         if self.cycles_target_enum == 'IMAGE_TEXTURES':
             return self.target_image
         return self.target_attribute or None
@@ -487,6 +502,9 @@ def add_bkn_node_menu_func(self, context):
 
 
 def bkn_node_context_menu_func(self, context):
+    """Adds items to the Node Editor context menu when a BakerNode is
+    selected.
+    """
     # Only show if a baker node is selected
     if not any(x.bl_idname == BakerNode.bl_idname
                for x in context.selected_nodes):

@@ -245,7 +245,7 @@ class _BakerNodeBaker:
             # tests with background baking
             render_props.engine = 'CYCLES'
 
-        render_props.use_bake_multires = False  # TODO?
+        render_props.use_bake_multires = False
 
         cycles_props.bake_type = 'EMIT'
         cycles_props.film_exposure = 1.0
@@ -256,7 +256,7 @@ class _BakerNodeBaker:
 
         bake_props.target = baker_node.cycles_target_enum
         bake_props.use_clear = True
-        bake_props.use_selected_to_active = False  # TODO ???
+        # bake_props.use_selected_to_active = False  # TODO ???
 
     @property
     def _bake_socket(self) -> NodeSocket:

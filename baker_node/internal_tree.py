@@ -51,6 +51,10 @@ class _TreeBuilder:
         baked_attr_node.location.y = 160
 
     def create_node_tree(self) -> bpy.types.ShaderNodeTree:
+        """Creates and returns a node tree for this classes baker_node.
+        Note that this does not set the baker node's node_tree
+        property.
+        """
         tree_name = self.baker_node.node_tree_name
 
         node_tree = bpy.data.node_groups.new(tree_name, "ShaderNodeTree")
@@ -133,6 +137,7 @@ def create_node_tree_for(baker_node) -> ShaderNodeTree:
 
 
 def rebuild_node_tree(baker_node) -> None:
+    """Clears and rebuilds the node tree of a BakerNode."""
     if baker_node.node_tree is None:
         raise ValueError("baker_node.node_tree should not be None")
 
@@ -141,11 +146,18 @@ def rebuild_node_tree(baker_node) -> None:
 
 
 def refresh_targets(baker_node) -> None:
+    """Refresh the values of the nodes containing baker_node's image
+    and color attribute targets. Should be called after baker_node's
+    target_image or target_attribute properties have been changed.
+    """
     if baker_node.node_tree is not None:
         _TreeBuilder(baker_node).refresh_targets()
 
 
 def refresh_uv_map(baker_node) -> None:
+    """Refresh the value of the UV map node of baker_node's internal
+    tree.
+    """
     if baker_node.node_tree is not None:
         uv_node = baker_node.node_tree.nodes[NodeNames.baked_img_uv]
         uv_node.uv_map = baker_node.uv_map

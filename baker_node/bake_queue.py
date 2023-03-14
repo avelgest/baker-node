@@ -32,11 +32,6 @@ def object_bake_complete(*_args):
     _schedule_update()
 
 
-# TODO Use or remove.
-def object_bake_pre(*_):
-    pass
-
-
 class BakeJobError(RuntimeError):
     """Error raised when a bake job could not start (e.g if the
     BakerNode could not be found).
@@ -93,6 +88,9 @@ class BakeQueueJob(bpy.types.PropertyGroup):
     )
 
     def init_from_baker_node(self, baker_node, background=False) -> None:
+        """Initialize this job from a BakerNode. If background is True
+        then the bake should run in the background when performed.
+        """
         self.node_name = baker_node.name
         self.node_id = baker_node.identifier
         self.bake_object = baker_node.bake_object
@@ -116,7 +114,8 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         return utils.get_node_by_attr(self.node_tree.nodes,
                                       "identifier", self.node_id)
 
-    def on_cancel(self):
+    def on_cancel(self) -> None:
+        """Called by BakeQueue if this job is cancelled."""
         if self.finished:
             return
 
@@ -126,7 +125,8 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         if baker_node is not None:
             baker_node.on_bake_cancel()
 
-    def on_complete(self):
+    def on_complete(self) -> None:
+        """Called by BakeQueue if this job completes successfully."""
         if self.finished:
             return
 
@@ -152,7 +152,7 @@ class BakeQueueJob(bpy.types.PropertyGroup):
             raise BakeJobError("BakerNode not found.")
 
         baker_node.perform_bake(obj=self.bake_object,
-                                immediate=not self.background)
+                                background=self.background)
 
         self.in_progress = self.background
 
@@ -178,9 +178,9 @@ class BakeQueueJob(bpy.types.PropertyGroup):
 class BakeQueue(bpy.types.PropertyGroup):
     _bake_handlers = (("object_bake_cancel", object_bake_cancel),
                       ("object_bake_complete", object_bake_complete),
-                      ("object_bake_pre", object_bake_pre))
+                      )
 
-    _update_function = None
+    _update_function: Optional[callable] = None
 
     jobs: bpy.props.CollectionProperty(
         type=BakeQueueJob,
@@ -281,6 +281,10 @@ class BakeQueue(bpy.types.PropertyGroup):
             self.job_complete(job)
 
     def add_job_from_baker_node(self, baker_node, immediate=False) -> None:
+        """Adds a BakeQueueJob to the queue from a BakerNode. If
+        immediate is True or background baking is not suppoted then the
+        job will be run immediately.
+        """
         in_background = self.bake_in_background and not immediate
 
         job = self.jobs.add()
