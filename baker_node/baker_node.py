@@ -327,11 +327,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """
         bake_queue.cancel_bake_jobs(self)
 
-    def free_bake(self) -> None:
-        if self.is_baked:
-            self.is_baked = False
-        self._update_synced_nodes()
-
     def _update_synced_nodes(self) -> None:
         if not self.sync:
             return
@@ -340,13 +335,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         for node in self._find_synced_nodes():
             if not node.mute:
                 with node.prevent_sync():
-                    if self.is_baked:
-                        try:
-                            node.schedule_bake()
-                        except self.ScheduleBakeError:
-                            pass
-                    else:
-                        node.free_bake()
+                    try:
+                        node.schedule_bake()
+                    except self.ScheduleBakeError:
+                        pass
 
     def _find_synced_nodes(self) -> List[BakerNode]:
         """Returns a list of all nodes that this node is synced with."""

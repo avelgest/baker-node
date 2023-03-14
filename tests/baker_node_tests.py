@@ -217,12 +217,6 @@ class TestBakerNode(unittest.TestCase):
         for x in px_color:
             self.assertAlmostEqual(x, 0.5, delta=0.01)
 
-        # Test freeing the bake
-        baker_node.free_bake()
-
-        self.assertFalse(baker_node.is_baked)
-        self.assertFalse(baker_node.bake_in_progress)
-
         baker_node.target_image = None
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
@@ -254,12 +248,6 @@ class TestBakerNode(unittest.TestCase):
 
         self._assert_color_attr_equal(target_attr, (0.5, 0.5, 0.5, 1.0))
 
-        # Test freeing the bake
-        baker_node.free_bake()
-
-        self.assertFalse(baker_node.is_baked)
-        self.assertFalse(baker_node.bake_in_progress)
-
     def test_3_3_img_plane_bake(self):
         get_prefs().background_baking = False
 
@@ -286,12 +274,6 @@ class TestBakerNode(unittest.TestCase):
 
         for x in px_color:
             self.assertAlmostEqual(x, 0.5, delta=0.01)
-
-        # Test freeing the bake
-        baker_node.free_bake()
-
-        self.assertFalse(baker_node.is_baked)
-        self.assertFalse(baker_node.bake_in_progress)
 
         baker_node.target_image = None
 
@@ -323,13 +305,6 @@ class TestBakerNode(unittest.TestCase):
         self._assert_color_attr_equal(self.attr_target_1, (0.1, 0.1, 0.1, 1.0))
         self._assert_color_attr_equal(self.attr_target_2, (0.2, 0.2, 0.2, 1.0))
 
-        self.assertFalse(baker_node_1.bake_in_progress)
-        self.assertFalse(baker_node_2.bake_in_progress)
-
-        baker_node_1.free_bake()
-
-        self.assertFalse(baker_node_1.is_baked)
-        self.assertFalse(baker_node_1.is_baked)
         self.assertFalse(baker_node_1.bake_in_progress)
         self.assertFalse(baker_node_2.bake_in_progress)
 

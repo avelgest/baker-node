@@ -79,21 +79,6 @@ class BKN_OT_bake_button(BakerNodeButtonBase, Operator):
         return {'FINISHED'}
 
 
-class BKN_OT_free_bake_button(BakerNodeButtonBase, Operator):
-    bl_idname = "node.bkn_free_bake_button"
-    bl_label = "Free Bake"
-    bl_description = "Free this node's bake"
-
-    def execute(self, context):
-        baker_node = self.get_baker_node(context)
-        if baker_node is None:
-            return {'CANCELLED'}
-        if not baker_node.is_baked:
-            return {'CANCELLED'}
-        baker_node.free_bake()
-        return {'FINISHED'}
-
-
 class BKN_OT_cancel_button(BakerNodeButtonBase, Operator):
     bl_idname = "node.bkn_cancel_button"
     bl_label = "Cancel"
@@ -165,7 +150,6 @@ class BKN_OT_mute_all_toggle(Operator):
 
 
 classes = (BKN_OT_bake_button,
-           BKN_OT_free_bake_button,
            BKN_OT_cancel_button,
            BKN_OT_bake_nodes,
            BKN_OT_mute_all_toggle)
