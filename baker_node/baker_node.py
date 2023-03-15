@@ -358,15 +358,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         new_target = None
 
-        baker_nodes = [x for x in self.id_data.nodes
-                       if x.bl_idname == self.bl_idname
-                       and x.target_type == self.target_type
-                       and x.bake_target is not None]
+        baker_nodes = utils.get_nodes_by_type(self.id_data.nodes,
+                                              self.bl_idname, True)
 
-        if self.target_type == 'IMAGE_TEXTURES':
+        if self.cycles_target_enum == 'IMAGE_TEXTURES':
             # Copy image settings from an existing image target
-            if baker_nodes:
-                new_target = self._new_target_from(baker_nodes[0].bake_target)
+            baker_node_imgs = [x.target_image for x in baker_nodes
+                               if x.target_image is not None]
+            if baker_node_imgs:
+                largest_img = max(baker_node_imgs,
+                                  key=lambda x: x.size[0]*x.size[1])
+                new_target = self._new_target_from_img(largest_img)
             else:
                 # Try copying image settings from an Image Texture node
                 node_imgs = [x.image for x in self.id_data.nodes
@@ -375,25 +377,20 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 if node_imgs:
                     largest_img = max(node_imgs,
                                       key=lambda x: x.size[0]*x.size[1])
-                    new_target = self._new_target_from(largest_img)
+                    new_target = self._new_target_from_img(largest_img)
 
-        elif self.target_type == 'VERTEX_COLORS':
-            basename = f"{self.label or self.name} Target"
-            existing_attrs = {x.target_attribute for x in baker_nodes}
-            new_target = utils.suffix_num_unique_in(basename, existing_attrs)
+        elif self.cycles_target_enum == 'VERTEX_COLORS':
+            new_target = self._auto_target_name
 
         self.bake_target = new_target
 
-    def _new_target_from(self, bake_target) -> Optional:
+    def _new_target_from_img(self, bake_target) -> Optional:
         use_float = self._guess_should_bake_float()
-        name = f"{self.label or self.name} Target"
-        if isinstance(bake_target, bpy.types.Image):
-            kwargs = utils.settings_from_image(bake_target)
-            if use_float:
-                kwargs["float_buffer"] = True
-            return bpy.data.images.new(name, **kwargs)
-        # TODO Support color attribute targets
-        return None
+
+        kwargs = utils.settings_from_image(bake_target)
+        if use_float:
+            kwargs["float_buffer"] = True
+        return bpy.data.images.new(self._auto_target_name, **kwargs)
 
     @contextlib.contextmanager
     def prevent_sync(self):
@@ -436,6 +433,25 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             return next((x for x in bpy.context.selected_objects
                          if x.type == 'MESH'), None)
         return None
+
+    @property
+    def _auto_target_name(self) -> str:
+        """The name to use for a new automatically created target
+        image/color attribute.
+        """
+
+        # Create a unique name for the target
+        name = f"{self.label or self.name} Target"
+
+        if self.cycles_target_enum == 'IMAGE_TEXTURES':
+            name = utils.suffix_num_unique_in(name, bpy.data.images, 3)
+
+        elif self.cycles_target_enum == 'VERTEX_COLORS':
+            baker_nodes = utils.get_nodes_by_type(self.id_data.nodes,
+                                                  self.bl_idname, True)
+            existing_attrs = {x.target_attribute for x in baker_nodes}
+            name = utils.suffix_num_unique_in(name, existing_attrs)
+        return name
 
     @property
     def bake_target(self) -> Optional[BakeTarget]:

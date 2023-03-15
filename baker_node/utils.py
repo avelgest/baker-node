@@ -6,7 +6,7 @@ import types
 import typing
 import sys
 
-from typing import Any, Callable, Collection, List, Optional
+from typing import Any, Callable, Collection, List, Optional, Union
 
 import bpy
 
@@ -35,6 +35,33 @@ def get_node_by_attr(nodes,
         if getattr(node, attr, _NOT_FOUND) == value:
             return node
     return None
+
+
+def get_nodes_by_type(nodes,
+                      node_type: Union[str, type],
+                      recursive: bool = False) -> list[bpy.types.Node]:
+    """Returns a list of nodes of a certain type.
+    Params:
+        nodes: A collection of nodes to search in.
+        node_type: A type of node or the bl_idname (str) of the type.
+        recursive: If True then also search inside any Group nodes.
+    Returns:
+        A list of nodes.
+    """
+    if not isinstance(node_type, str):
+        node_type = node_type.bl_rna.identifier
+
+    found = [x for x in nodes if x.bl_idname == node_type]
+
+    if recursive:
+        node_trees = {x.node_tree for x in nodes
+                      if x.bl_idname == "ShaderNodeGroup"
+                      and x.node_tree is not None}
+        for node_tree in node_trees:
+            found += get_nodes_by_type(node_tree.nodes, node_type)
+        # Remove duplicates
+        found = list(set(found))
+    return found
 
 
 def get_node_tree_ma(node_tree: bpy.types.ShaderNodeTree,
@@ -173,7 +200,7 @@ class OpCaller:
         self._context = context
         self.keywords = keywords
 
-    def call(self, op: typing.Union[str, callable],
+    def call(self, op: Union[str, callable],
              exec_ctx: str = 'EXEC_DEFAULT',
              undo: Optional[bool] = None, **props
              ) -> typing.Set[str]:
