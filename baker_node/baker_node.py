@@ -330,6 +330,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """
         bake_queue.cancel_bake_jobs(self)
 
+    def create_color_attr_on(self,
+                             mesh: bpy.types.Mesh,
+                             name: str) -> bpy.types.Attribute:
+        """Creates and returns a color attribute for this BakerNode
+        on mesh.
+        """
+        prefs = get_prefs()
+
+        dtype = ('FLOAT_COLOR' if self._guess_should_bake_float()
+                 else 'BYTE_COLOR')
+
+        return mesh.color_attributes.new(name, dtype, prefs.auto_target_domain)
+
     def _update_synced_nodes(self) -> None:
         if not self.sync:
             return
@@ -406,16 +419,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         finally:
             self.sync = old_sync_val
 
-    def _get_active_inputs(self) -> List[bpy.types.NodeSocket]:
-        """Returns a list of the inputs that will be used in baking."""
-        return [self.inputs[0]]
-
     def _guess_should_bake_float(self) -> bool:
         """Returns whether this node should use a float target."""
-        if get_prefs().auto_target_float:
+        # Check the Always Use Float option in preferences for this
+        # node's target type
+        if self.cycles_target_enum == 'IMAGE_TEXTURES':
+            if get_prefs().auto_target_float_img:
+                return True
+
+        # If self.cycles_target_enum == 'VERTEX_COLORS'
+        elif get_prefs().auto_target_float_attr:
             return True
 
-        for x in self._get_active_inputs():
+        for x in self.inputs:
             if not x.is_linked:
                 continue
             linked_soc = x.links[0].from_socket
@@ -455,6 +471,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             baker_nodes = utils.get_nodes_by_type(self.id_data.nodes,
                                                   self.bl_idname, True)
             existing_attrs = {x.target_attribute for x in baker_nodes}
+
+            obj = bpy.context.active_object
+            if obj is not None and hasattr(obj.data, "color_attributes"):
+                existing_attrs |= {x.name for x in obj.data.color_attributes}
             name = utils.suffix_num_unique_in(name, existing_attrs)
         return name
 

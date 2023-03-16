@@ -131,9 +131,7 @@ class _BakerNodeBaker:
 
         if target is None:
             # Create the missing color attribute
-            # TODO get type/domain from baker_node
-            target = mesh.color_attributes.new(target_name, 'FLOAT_COLOR',
-                                               'CORNER')
+            target = self.baker_node.create_color_attr_on(mesh, target_name)
 
         old_active = mesh.color_attributes.active_color
         old_active_name = old_active.name if old_active else ""

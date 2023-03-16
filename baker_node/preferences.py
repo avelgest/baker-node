@@ -2,7 +2,7 @@
 
 import bpy
 
-from bpy.props import BoolProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, IntProperty
 
 from .. import __package__ as package_name
 
@@ -21,17 +21,34 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         default=True
     )
 
-    auto_target_float: BoolProperty(
-        name="Always Use Float Auto Targets",
-        description="Always use floating point images/attributes when "
-                    "automatically creating targets."
+    auto_target_domain: EnumProperty(
+        name="Auto Target Domain",
+        description="Type of element that automatically created color "
+                    "attributes are stored on",
+        items=(('POINT', "Vertex", ""),
+               ('CORNER', "Face Corner", "")),
+        default='CORNER'
+    )
+
+    auto_target_float_attr: BoolProperty(
+        name="Always Use Float",
+        description="Always use 32 bit floating point color attributes when "
+                    "automatically creating color attribute targets",
+        default=True
+    )
+
+    auto_target_float_img: BoolProperty(
+        name="Always Use Float",
+        description="Always use 32 bit floating point images when "
+                    "automatically creating image targets",
+        default=False
     )
 
     auto_target_img_size: IntProperty(
         name="Auto Target Size",
         description="The width and height of an automatically created image. "
                     "If there are already Baker nodes added then the size of "
-                    "their images will be used instead.",
+                    "their images will be used instead",
         default=1024,
         min=1, soft_max=2**16
     )
@@ -60,10 +77,20 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         col.prop(self, "auto_create_targets")
 
         box = col.box()
-        box.label(text="Automatic Target Settings")
         box.enabled = self.auto_create_targets
-        box.prop(self, "auto_target_float", text="Always Use Float")
-        box.prop(self, "auto_target_img_size", text="Image Size")
+        box.label(text="Automatic Target Settings")
+
+        split = box.split(factor=0.5)
+        col = split.box()
+        col.label(text="Images")
+        col.prop(self, "auto_target_float_img", text="Always Use Float")
+        col.prop(self, "auto_target_img_size", text="Image Size")
+
+        col = split.box()
+        col.enabled = self.supports_color_attributes
+        col.label(text="Color Attributes")
+        col.prop(self, "auto_target_float_attr")
+        col.prop(self, "auto_target_domain", text="Domain")
 
     def _background_baking_update(self):
         # Baking in background only available for Blender 3.3+
