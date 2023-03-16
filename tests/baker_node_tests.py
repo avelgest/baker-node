@@ -309,28 +309,55 @@ class TestBakerNode(unittest.TestCase):
         self.assertFalse(baker_node_2.bake_in_progress)
 
     def test_5_2_auto_create_target_img(self):
-        existing_img = self.img_target
-        baker_node_1 = self._new_baker_node("auto_target_test_1")
-        self._set_target(baker_node_1, existing_img)
+        prefs = get_prefs()
+        auto_size = prefs.auto_target_img_size
 
+        # Test when there are no other baker nodes
+        baker_node_1 = self._new_baker_node("auto_target_test_1")
+        baker_node_1.target_type = 'IMAGE_TEXTURES'
+
+        self.assertIsNone(baker_node_1.bake_target)
+        baker_node_1.auto_create_target()
+
+        new_target_1 = baker_node_1.bake_target
+        self.assertIsInstance(new_target_1, bpy.types.Image)
+        self.assertTrue(new_target_1.name)
+        self.assertEqual(tuple(new_target_1.size), (auto_size, auto_size))
+
+        # Test when there are other baker nodes
+        # Test IMAGE_TEXTURES target type
         baker_node_2 = self._new_baker_node("auto_target_test_2")
+        baker_node_2.target_type = 'IMAGE_TEXTURES'
         self.assertIsNone(baker_node_2.bake_target)
 
-        all_existing_images = [x.name for x in bpy.data.images]
-
         baker_node_2.auto_create_target()
-        new_target = baker_node_2.bake_target
+        new_target_2 = baker_node_2.bake_target
 
-        self.assertIsNotNone(new_target)
-        self.assertIsInstance(new_target, bpy.types.Image)
-        self.assertNotIn(new_target, all_existing_images)
+        self.assertIsNotNone(new_target_2)
+        self.assertIsInstance(new_target_2, bpy.types.Image)
 
-        self.assertEqual(tuple(new_target.size), tuple(existing_img.size))
-        self.assertEqual(new_target.is_float, existing_img.is_float)
-        self.assertEqual(new_target.colorspace_settings.is_data,
-                         existing_img.colorspace_settings.is_data)
+        # Check that the new image copies the setting of new_target_1
+        self.assertEqual(tuple(new_target_2.size), tuple(new_target_1.size))
+        self.assertEqual(new_target_2.is_float, new_target_1.is_float)
+        self.assertEqual(new_target_2.colorspace_settings.is_data,
+                         new_target_1.colorspace_settings.is_data)
 
-        bpy.data.images.remove(new_target)
+        # Test IMAGE_TEX_PLANE target type
+        baker_node_3 = self._new_baker_node("auto_target_test_3")
+        baker_node_3.target_type = 'IMAGE_TEX_PLANE'
+
+        self.assertFalse(baker_node_3.bake_target)
+        baker_node_3.auto_create_target()
+        new_target_3 = baker_node_3.bake_target
+
+        self.assertIsNotNone(new_target_3)
+        self.assertIsInstance(new_target_3, bpy.types.Image)
+        self.assertNotEqual(new_target_3.name, new_target_2.name)
+        self.assertEqual(tuple(new_target_3.size), tuple(new_target_2.size))
+
+        bpy.data.images.remove(new_target_1)
+        bpy.data.images.remove(new_target_2)
+        bpy.data.images.remove(new_target_3)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_5_3_auto_create_target_attr(self):
@@ -344,6 +371,12 @@ class TestBakerNode(unittest.TestCase):
         self.assertFalse(baker_node.bake_target)
         baker_node.auto_create_target()
 
-        new_target = baker_node.bake_target
-        self.assertIsInstance(new_target, str)
-        self.assertTrue(new_target)
+        self.assertIsInstance(baker_node.bake_target, str)
+        self.assertTrue(baker_node.bake_target)
+
+        baker_node_2 = self._new_baker_node("auto_target_test_2")
+        baker_node_2.target_type = 'VERTEX_COLORS'
+
+        baker_node_2.auto_create_target()
+        self.assertTrue(baker_node_2.bake_target)
+        self.assertNotEqual(baker_node_2.bake_target, baker_node.bake_target)

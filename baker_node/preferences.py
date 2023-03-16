@@ -21,6 +21,21 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         default=True
     )
 
+    auto_target_float: BoolProperty(
+        name="Always Use Float Auto Targets",
+        description="Always use floating point images/attributes when "
+                    "automatically creating targets."
+    )
+
+    auto_target_img_size: IntProperty(
+        name="Auto Target Size",
+        description="The width and height of an automatically created image. "
+                    "If there are already Baker nodes added then the size of "
+                    "their images will be used instead.",
+        default=1024,
+        min=1, soft_max=2**16
+    )
+
     background_baking: BoolProperty(
         name="Bake in Background",
         description="Perform baking in the background if possible",
@@ -38,8 +53,17 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     def draw(self, _context):
         layout = self.layout
         layout.prop(self, "background_baking")
-        layout.prop(self, "auto_create_targets")
         layout.prop(self, "default_samples")
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(self, "auto_create_targets")
+
+        box = col.box()
+        box.label(text="Automatic Target Settings")
+        box.enabled = self.auto_create_targets
+        box.prop(self, "auto_target_float", text="Always Use Float")
+        box.prop(self, "auto_target_img_size", text="Image Size")
 
     def _background_baking_update(self):
         # Baking in background only available for Blender 3.3+

@@ -358,37 +358,36 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         new_target = None
 
-        baker_nodes = utils.get_nodes_by_type(self.id_data.nodes,
-                                              self.bl_idname, True)
-
         if self.cycles_target_enum == 'IMAGE_TEXTURES':
-            # Copy image settings from an existing image target
-            baker_node_imgs = [x.target_image for x in baker_nodes
-                               if x.target_image is not None]
-            if baker_node_imgs:
-                largest_img = max(baker_node_imgs,
-                                  key=lambda x: x.size[0]*x.size[1])
-                new_target = self._new_target_from_img(largest_img)
-            else:
-                # Try copying image settings from an Image Texture node
-                node_imgs = [x.image for x in self.id_data.nodes
-                             if x.bl_idname == "ShaderNodeTexImage"
-                             and x.image is not None]
-                if node_imgs:
-                    largest_img = max(node_imgs,
-                                      key=lambda x: x.size[0]*x.size[1])
-                    new_target = self._new_target_from_img(largest_img)
-
+            new_target = self._auto_create_target_img()
         elif self.cycles_target_enum == 'VERTEX_COLORS':
             new_target = self._auto_target_name
 
         self.bake_target = new_target
 
-    def _new_target_from_img(self, bake_target) -> Optional:
-        use_float = self._guess_should_bake_float()
+    def _auto_create_target_img(self) -> bpy.types.Image:
+        # Try to copy image settings from an existing baker's target
+        baker_nodes = utils.get_nodes_by_type(self.id_data.nodes,
+                                              self.bl_idname, True)
+        baker_node_imgs = [x.target_image for x in baker_nodes
+                           if x.target_image is not None]
+        if baker_node_imgs:
+            largest_img = max(baker_node_imgs,
+                              key=lambda x: x.size[0]*x.size[1])
+            return self._new_target_from_img(largest_img)
 
+        # Use the settings in preferences for the new image
+        prefs = get_prefs()
+        size = prefs.auto_target_img_size
+        return bpy.data.images.new(
+                        self._auto_target_name, size, size,
+                        alpha=False,
+                        float_buffer=self._guess_should_bake_float(),
+                        is_data=True)
+
+    def _new_target_from_img(self, bake_target) -> bpy.types.Image:
         kwargs = utils.settings_from_image(bake_target)
-        if use_float:
+        if self._guess_should_bake_float():
             kwargs["float_buffer"] = True
         return bpy.data.images.new(self._auto_target_name, **kwargs)
 
@@ -410,6 +409,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def _guess_should_bake_float(self) -> bool:
         """Returns whether this node should use a float target."""
+        if get_prefs().auto_target_float:
+            return True
+
         for x in self._get_active_inputs():
             if not x.is_linked:
                 continue
