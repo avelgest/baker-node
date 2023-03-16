@@ -308,13 +308,22 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if not background:
             self.on_bake_complete()
 
+    def _on_bake_end(self) -> None:
+        """Called when the bake is either completed or cancelled."""
+        self.bake_in_progress = False
+
+        if bpy.context.scene.render.engine == 'CYCLES':
+            # Image may appear blank while baking in Cycles render view
+            # so need to update cycles after the bake.
+            bpy.context.scene.update_render_engine()
+
     def on_bake_complete(self) -> None:
         """Called when the bake has been completed."""
         if not self.bake_in_progress:
             return
 
         self.is_baked = True
-        self.bake_in_progress = False
+        self._on_bake_end()
 
     def on_bake_cancel(self) -> None:
         """Called if the bake is cancelled."""
@@ -322,7 +331,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             return
 
         self.is_baked = False
-        self.bake_in_progress = False
+        self._on_bake_end()
 
     def cancel_bake(self) -> None:
         """Delete all bake jobs from this baker node (this will not
