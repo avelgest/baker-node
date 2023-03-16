@@ -136,6 +136,13 @@ def create_node_tree_for(baker_node) -> ShaderNodeTree:
     return node_tree
 
 
+def relink_node_tree(baker_node) -> None:
+    """Recreate the links of nodes in a BakerNode's internal tree."""
+    if baker_node.node_tree is None:
+        raise ValueError("baker_node.node_tree should not be None")
+    _TreeBuilder(baker_node).link_nodes()
+
+
 def rebuild_node_tree(baker_node) -> None:
     """Clears and rebuilds the node tree of a BakerNode."""
     if baker_node.node_tree is None:

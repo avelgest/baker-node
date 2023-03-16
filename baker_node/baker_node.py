@@ -63,7 +63,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                ('VERTEX_COLORS', "Color Attribute",
                 "Bake to a color attribute on a mesh")),
         default='IMAGE_TEXTURES',
-        update=lambda self, _: self._rebuild_node_tree()
+        update=lambda self, _: self._relink_node_tree()
     )
 
     bake_in_progress: BoolProperty(
@@ -250,8 +250,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         self.draw_buttons(context, layout)
 
-    def _rebuild_node_tree(self) -> None:
-        internal_tree.rebuild_node_tree(self)
+    def _relink_node_tree(self) -> None:
+        internal_tree.relink_node_tree(self)
 
     def _refresh_targets(self) -> None:
         internal_tree.refresh_targets(self)
