@@ -221,12 +221,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                          text="Color Space")
 
         elif self.target_type == 'VERTEX_COLORS':
+            row = layout.row(align=True)
             if hasattr(mesh, "color_attributes"):
-                _prop_search(layout, self, "target_attribute",
+                _prop_search(row, self, "target_attribute",
                              mesh, "color_attributes",
                              text="", results_are_suggestions=True)
+                row.operator("geometry.color_attribute_add",
+                             text="", icon='ADD')
             else:
-                layout.prop(self, "target_attribute", text="", icon="DOT")
+                row.prop(self, "target_attribute", text="", icon="DOT")
 
     def draw_buttons(self, context, layout):
         prefs = get_prefs()
