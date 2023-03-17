@@ -41,14 +41,14 @@ class _TreeBuilder:
         uv_map_node.name = NodeNames.baked_img_uv
         uv_map_node.uv_map = self.baker_node.uv_map
         uv_map_node.location = baked_img_node.location
-        uv_map_node.location.x -= 160
+        uv_map_node.location.x -= 180
 
         links.new(baked_img_node.inputs[0], uv_map_node.outputs[0])
 
         baked_attr_node = nodes.new("ShaderNodeVertexColor")
         baked_attr_node.name = NodeNames.baked_attr
         baked_attr_node.layer_name = self.baker_node.target_attribute
-        baked_attr_node.location.y = 160
+        baked_attr_node.location.y = 180
 
     def create_node_tree(self) -> bpy.types.ShaderNodeTree:
         """Creates and returns a node tree for this classes baker_node.
