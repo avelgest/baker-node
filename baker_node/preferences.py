@@ -60,6 +60,16 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         update=lambda self, _: self._background_baking_update()
     )
 
+    cycles_device: EnumProperty(
+        name="Device",
+        description="The device Cycles should use when baking",
+        items=(('DEFAULT', "Default", "Use the device that is set in the"
+                                      "Render Properties panel"),
+               ('CPU', "CPU", "Always use the CPU for baking"),
+               ('GPU', "GPU", "Always use the GPU for baking")),
+        default='DEFAULT'
+    )
+
     default_samples: IntProperty(
         name="Default Samples",
         description="Default number of samples to use for baking",
@@ -69,8 +79,11 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
 
     def draw(self, _context):
         layout = self.layout
-        layout.prop(self, "background_baking")
-        layout.prop(self, "default_samples")
+        flow = layout.column_flow(columns=2)
+        flow.prop(self, "background_baking")
+        flow.prop(self, "default_samples")
+        flow.separator_spacer()
+        flow.prop(self, "cycles_device")
         layout.separator()
 
         col = layout.column(align=True)

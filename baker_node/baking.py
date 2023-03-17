@@ -14,6 +14,7 @@ from mathutils import Matrix
 
 from . import internal_tree
 from . import utils
+from .preferences import get_prefs
 
 
 class _BakerNodeBaker:
@@ -230,6 +231,7 @@ class _BakerNodeBaker:
         scene = bpy.context.scene
         baker_node = self.baker_node
         exit_stack = self._exit_stack
+        prefs = get_prefs()
 
         render_props = exit_stack.enter_context(
                         utils.TempChanges(scene.render, False))
@@ -244,6 +246,10 @@ class _BakerNodeBaker:
             render_props.engine = 'CYCLES'
 
         render_props.use_bake_multires = False
+
+        if (prefs.cycles_device != 'DEFAULT'
+                and cycles_props.device != prefs.cycles_device):
+            cycles_props.device = prefs.cycles_device
 
         cycles_props.bake_type = 'EMIT'
         cycles_props.film_exposure = 1.0
