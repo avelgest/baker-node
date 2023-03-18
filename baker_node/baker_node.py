@@ -273,10 +273,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             raise self.ScheduleBakeError("A bake is already in progress for "
                                          "this node.")
 
-        if self.bake_target is None:
+        if not self.bake_target:
             if get_prefs().auto_create_targets:
                 self.auto_create_target()
-            if self.bake_target is None:
+            if not self.bake_target:
                 msg = ("Could not automatically create bake target"
                        if get_prefs().auto_create_targets
                        else "No bake target set")
@@ -378,7 +378,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """Creates and sets an appropriate bake target for this
         BakerNode if a target has not already been provided.
         """
-        if self.bake_target is not None:
+        if self.bake_target:
             return
 
         new_target = None
@@ -451,7 +451,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return False
 
     @property
-    def bake_object(self) -> Optional[BakerNode]:
+    def bake_object(self) -> Optional[bpy.types.Object]:
         """The object that should be active when this node is baked."""
         if self.specific_bake_object is not None:
             return self.specific_bake_object
@@ -491,11 +491,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def bake_target(self) -> Optional[BakeTarget]:
         """The target to bake to. The type returned depends on this
         nodes target type (str for color attributes or Image for image
-        textures). May return None if this node has no target.
+        textures).
         """
         if self.cycles_target_enum == 'IMAGE_TEXTURES':
             return self.target_image
-        return self.target_attribute or None
+        return self.target_attribute
 
     @bake_target.setter
     def bake_target(self, value: Optional[BakeTarget]) -> None:
