@@ -189,6 +189,24 @@ class TestBakerNode(unittest.TestCase):
         self.assertFalse(new_node.is_baked)
         self.assertFalse(new_node.bake_in_progress)
 
+    def test_2_4_targets(self):
+        baker_node = self._new_baker_node("targets_test")
+
+        baker_node.target_type = 'IMAGE_TEXTURES'
+        self.assertIsNone(baker_node.bake_target)
+
+        baker_node.bake_target = self.img_target
+        self.assertEqual(baker_node.bake_target, self.img_target)
+        self.assertEqual(baker_node.bake_target, baker_node.target_image)
+
+        baker_node.target_type = 'VERTEX_COLORS'
+        self.assertIsInstance(baker_node.bake_target, str)
+        self.assertEqual(baker_node.bake_target, "")
+
+        baker_node.bake_target = "test"
+        self.assertEqual(baker_node.bake_target, "test")
+        self.assertEqual(baker_node.bake_target, baker_node.target_attribute)
+
     def test_3_1_img_bake(self):
         # Use synchronous baking
         get_prefs().background_baking = False
