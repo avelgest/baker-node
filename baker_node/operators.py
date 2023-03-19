@@ -149,9 +149,65 @@ class BKN_OT_mute_all_toggle(Operator):
         return {'FINISHED'}
 
 
+class BKN_OT_to_builtin(Operator):
+    bl_idname = "node.bkn_to_builtin"
+    bl_label = "Convert Bakers to Built-in"
+    bl_description = ("Converts the selcted bakers to Image Texture or "
+                      "Color Attribute nodes")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return _baker_node_selected(context)
+
+    def _replace_baker(self, baker: BakerNode) -> list[bpy.types.ShaderNode]:
+        node_tree = baker.id_data
+        added = []
+        if baker.target_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
+            img_node = node_tree.nodes.new("ShaderNodeTexImage")
+            img_node.image = baker.bake_target
+            added.append(img_node)
+
+            if baker.uv_map:
+                uv_node = node_tree.nodes.new("ShaderNodeUVMap")
+                uv_node.uv_map = baker.uv_map
+                uv_node.location.x -= 180
+
+                node_tree.links.new(img_node.inputs[0], uv_node.outputs[0])
+                added.append(uv_node)
+        elif baker.target_type == 'VERTEX_COLORS':
+            col_attr_node = node_tree.nodes.new("ShaderNodeVertexColor")
+            col_attr_node.layer_name = baker.target_attribute
+
+            added.append(col_attr_node)
+        else:
+            self.report({'WARNING'}, "Bakers with target type "
+                                     f"{baker.target_type} are not supported")
+            return []
+
+        added[0].label = baker.label
+
+        for x in added:
+            x.name = f"{x.bl_label} ({baker.name})"
+            x.parent = baker.parent
+            x.location += baker.location
+            x.hide = baker.hide
+            x.select = True
+
+        node_tree.nodes.remove(baker)
+        return added
+
+    def execute(self, context):
+        for baker in _get_active_or_selected_baker_nodes(context):
+            self._replace_baker(baker)
+
+        return {'FINISHED'}
+
+
 classes = (BKN_OT_bake_button,
            BKN_OT_cancel_button,
            BKN_OT_bake_nodes,
-           BKN_OT_mute_all_toggle)
+           BKN_OT_mute_all_toggle,
+           BKN_OT_to_builtin)
 
 register, unregister = bpy.utils.register_classes_factory(classes)
