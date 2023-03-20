@@ -120,10 +120,10 @@ class TestBakerNode(unittest.TestCase):
     @classmethod
     def _set_target(cls, baker_node, target) -> None:
         if isinstance(target, bpy.types.Image):
-            baker_node.target_type = 'IMAGE_TEXTURES'
+            baker_node.target_type = 'IMAGE_TEX_UV'
             baker_node.target_image = target
         elif isinstance(target, bpy.types.Attribute):
-            baker_node.target_type = 'VERTEX_COLORS'
+            baker_node.target_type = 'COLOR_ATTRIBUTE'
             baker_node.target_attribute = target.name
         else:
             raise TypeError(f"Unsupported target type: {type(target)}")
@@ -192,14 +192,14 @@ class TestBakerNode(unittest.TestCase):
     def test_2_4_targets(self):
         baker_node = self._new_baker_node("targets_test")
 
-        baker_node.target_type = 'IMAGE_TEXTURES'
+        baker_node.target_type = 'IMAGE_TEX_UV'
         self.assertIsNone(baker_node.bake_target)
 
         baker_node.bake_target = self.img_target
         self.assertEqual(baker_node.bake_target, self.img_target)
         self.assertEqual(baker_node.bake_target, baker_node.target_image)
 
-        baker_node.target_type = 'VERTEX_COLORS'
+        baker_node.target_type = 'COLOR_ATTRIBUTE'
         self.assertIsInstance(baker_node.bake_target, str)
         self.assertEqual(baker_node.bake_target, "")
 
@@ -332,7 +332,7 @@ class TestBakerNode(unittest.TestCase):
 
         # Test when there are no other baker nodes
         baker_node_1 = self._new_baker_node("auto_target_test_1")
-        baker_node_1.target_type = 'IMAGE_TEXTURES'
+        baker_node_1.target_type = 'IMAGE_TEX_UV'
 
         self.assertIsNone(baker_node_1.bake_target)
         baker_node_1.auto_create_target()
@@ -343,9 +343,9 @@ class TestBakerNode(unittest.TestCase):
         self.assertEqual(tuple(new_target_1.size), (auto_size, auto_size))
 
         # Test when there are other baker nodes
-        # Test IMAGE_TEXTURES target type
+        # Test IMAGE_TEX_UV target type
         baker_node_2 = self._new_baker_node("auto_target_test_2")
-        baker_node_2.target_type = 'IMAGE_TEXTURES'
+        baker_node_2.target_type = 'IMAGE_TEX_UV'
         self.assertIsNone(baker_node_2.bake_target)
 
         baker_node_2.auto_create_target()
@@ -384,7 +384,7 @@ class TestBakerNode(unittest.TestCase):
         # string by auto_create_target.
 
         baker_node = self._new_baker_node("auto_target_test")
-        baker_node.target_type = 'VERTEX_COLORS'
+        baker_node.target_type = 'COLOR_ATTRIBUTE'
 
         self.assertFalse(baker_node.bake_target)
         baker_node.auto_create_target()
@@ -393,7 +393,7 @@ class TestBakerNode(unittest.TestCase):
         self.assertTrue(baker_node.bake_target)
 
         baker_node_2 = self._new_baker_node("auto_target_test_2")
-        baker_node_2.target_type = 'VERTEX_COLORS'
+        baker_node_2.target_type = 'COLOR_ATTRIBUTE'
 
         baker_node_2.auto_create_target()
         self.assertTrue(baker_node_2.bake_target)

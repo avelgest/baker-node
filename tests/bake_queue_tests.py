@@ -50,7 +50,7 @@ class TestBakeQueue(unittest.TestCase):
         baker_node = ma.node_tree.nodes.new(BakerNodeMock.bl_idname)
 
         baker_node.name = cls.BAKE_NODE_NAME
-        baker_node.target_type = 'IMAGE_TEXTURES'
+        baker_node.target_type = 'IMAGE_TEX_UV'
         baker_node.target_image = cls.img_target
 
         get_prefs().background_baking = True

@@ -56,13 +56,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     target_type: EnumProperty(
         name="Bake Mode",
         description="The type of target to bake to",
-        items=(('IMAGE_TEXTURES', "Image (UV)", "Bake to an image using a "
+        items=(('IMAGE_TEX_UV', "Image (UV)", "Bake to an image using a "
                 "UV-mapped object"),
                ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an axis-aligned "
                 "plane"),
-               ('VERTEX_COLORS', "Color Attribute",
+               ('COLOR_ATTRIBUTE', "Color Attribute",
                 "Bake to a color attribute on a mesh")),
-        default='IMAGE_TEXTURES',
+        default='IMAGE_TEX_UV',
         update=lambda self, _: self._relink_node_tree()
     )
 
@@ -193,14 +193,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         else:
             mesh = None
 
-        if self.target_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
+        if self.target_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             image_node = internal_tree.get_target_image_node(self, True)
             if image_node is not None:
                 layout.template_ID(image_node, "image",
                                    new="image.new",
                                    open="image.open")
 
-            if self.target_type == 'IMAGE_TEXTURES':
+            if self.target_type == 'IMAGE_TEX_UV':
                 # UV map
                 if hasattr(mesh, "uv_layers"):
                     _prop_search(layout, self, "uv_map",
@@ -220,7 +220,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 row.prop(image_node.image.colorspace_settings, "name",
                          text="Color Space")
 
-        elif self.target_type == 'VERTEX_COLORS':
+        elif self.target_type == 'COLOR_ATTRIBUTE':
             row = layout.row(align=True)
             if hasattr(mesh, "color_attributes"):
                 _prop_search(row, self, "target_attribute",
@@ -436,7 +436,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             if get_prefs().auto_target_float_img:
                 return True
 
-        # If self.cycles_target_enum == 'VERTEX_COLORS'
+        # Otherwise if self.cycles_target_enum == 'VERTEX_COLORS'
         elif get_prefs().auto_target_float_attr:
             return True
 
@@ -509,7 +509,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """The value (str) of bpy.types.BakeSettings.target that should
         be used. Either 'IMAGE_TEXTURES' or 'VERTEX_COLORS'.
         """
-        if self.target_type == 'VERTEX_COLORS':
+        if self.target_type == 'COLOR_ATTRIBUTE':
             return 'VERTEX_COLORS'
         return 'IMAGE_TEXTURES'
 

@@ -114,10 +114,10 @@ class _BakerNodeBaker:
         self._object = plane
 
     def _setup_target(self) -> None:
-        if self._bake_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
+        if self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             self._setup_target_image()
 
-        elif self._bake_type == 'VERTEX_COLORS':
+        elif self._bake_type == 'COLOR_ATTRIBUTE':
             self._setup_target_attr()
 
     def _setup_target_attr(self) -> None:
@@ -279,7 +279,7 @@ class _BakerNodeBaker:
             return "UVMap"
         uv_map = self.baker_node.uv_map
         if (uv_map not in self._object.data.uv_layers
-                or not self._bake_type == 'IMAGE_TEXTURES'):
+                or not self._bake_type == 'IMAGE_TEX_UV'):
             return ""
         return uv_map
 

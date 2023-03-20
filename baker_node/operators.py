@@ -163,7 +163,7 @@ class BKN_OT_to_builtin(Operator):
     def _replace_baker(self, baker: BakerNode) -> list[bpy.types.ShaderNode]:
         node_tree = baker.id_data
         added = []
-        if baker.target_type in ('IMAGE_TEXTURES', 'IMAGE_TEX_PLANE'):
+        if baker.target_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             img_node = node_tree.nodes.new("ShaderNodeTexImage")
             img_node.image = baker.bake_target
             added.append(img_node)
@@ -175,7 +175,7 @@ class BKN_OT_to_builtin(Operator):
 
                 node_tree.links.new(img_node.inputs[0], uv_node.outputs[0])
                 added.append(uv_node)
-        elif baker.target_type == 'VERTEX_COLORS':
+        elif baker.target_type == 'COLOR_ATTRIBUTE':
             col_attr_node = node_tree.nodes.new("ShaderNodeVertexColor")
             col_attr_node.layer_name = baker.target_attribute
 
