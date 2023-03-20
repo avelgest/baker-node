@@ -40,6 +40,31 @@ class _BakerNodeBaker:
 
         self._exit_stack: Optional[contextlib.ExitStack] = None
 
+    def _deselect_all_nodes(self) -> None:
+        """Deselect all nodes in the target node tree. The nodes will
+        be re-selected on clean up.
+        """
+        selected_names = []
+        for node in self._target_tree.nodes:
+            if node.select:
+                selected_names.append(node.name)
+                node.select = False
+
+        if not selected_names:
+            return
+
+        get_node_tree = utils.safe_node_tree_getter(self._target_tree)
+
+        def clean_up():
+            node_tree = get_node_tree()
+            if node_tree is None:
+                return
+            for x in selected_names:
+                node = node_tree.nodes.get(x)
+                if node is not None:
+                    node.select = True
+        self._exit_stack.callback(clean_up)
+
     def _init_ma_output_node(self) -> None:
         """Creates a Material Output node and connects it to the socket
         that should be baked.
@@ -191,6 +216,7 @@ class _BakerNodeBaker:
 
         with contextlib.ExitStack() as self._exit_stack:
 
+            self._deselect_all_nodes()
             self._setup_target()
             self._init_ma_output_node()
             self._set_bake_settings()
