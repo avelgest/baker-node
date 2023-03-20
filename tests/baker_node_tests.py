@@ -328,6 +328,7 @@ class TestBakerNode(unittest.TestCase):
 
     def test_5_2_auto_create_target_img(self):
         prefs = get_prefs()
+        prefs.auto_target_float_img = False
         auto_size = prefs.auto_target_img_size
 
         # Test when there are no other baker nodes

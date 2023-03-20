@@ -408,12 +408,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                         self._auto_target_name, size, size,
                         alpha=False,
                         float_buffer=self._guess_should_bake_float(),
-                        is_data=True)
+                        is_data=self._guess_should_bake_non_color())
 
     def _new_target_from_img(self, bake_target) -> bpy.types.Image:
         kwargs = utils.settings_from_image(bake_target)
         if self._guess_should_bake_float():
             kwargs["float_buffer"] = True
+        if self._guess_should_bake_non_color():
+            kwargs["is_data"] = True
         return bpy.data.images.new(self._auto_target_name, **kwargs)
 
     @contextlib.contextmanager
@@ -428,6 +430,16 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         finally:
             self.sync = old_sync_val
 
+    def _guess_should_bake_non_color(self) -> bool:
+        """Returns True if this node should use an non-color image target."""
+        unbaked_in = self.inputs[0]
+
+        if not unbaked_in.is_linked:
+            return False
+
+        linked_soc = unbaked_in.links[0].from_socket
+        return linked_soc.type != 'RGBA'
+
     def _guess_should_bake_float(self) -> bool:
         """Returns whether this node should use a float target."""
         # Check the Always Use Float option in preferences for this
@@ -440,15 +452,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         elif get_prefs().auto_target_float_attr:
             return True
 
-        for x in self.inputs:
-            if not x.is_linked:
-                continue
-            linked_soc = x.links[0].from_socket
-            if not (linked_soc.name.lower() == "fac"
+        unbaked_in = self.inputs[0]
+        if not unbaked_in.is_linked:
+            return False
+
+        linked_soc = unbaked_in.links[0].from_socket
+
+        return not (linked_soc.name.lower() == "fac"
                     or linked_soc.type == 'RGBA'
-                    or getattr(linked_soc.node, "use_clamp", False)):
-                return True
-        return False
+                    or getattr(linked_soc.node, "use_clamp", False))
 
     @property
     def bake_object(self) -> Optional[bpy.types.Object]:
