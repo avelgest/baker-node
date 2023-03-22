@@ -3,9 +3,9 @@
 bl_info = {
     "name": "Baker Node",
     "description": "Adds a node to the shader editor that bakes its "
-                   "input(s) with a single click",
+                   "input with a single click",
     "author": "Avelgest",
-    "version": (0, 5, 0),
+    "version": (0, 6, 0),
     "blender": (3, 0, 0),
     "category": "Node",
     "location": "Shader Editor > Add > Output > Baker",
