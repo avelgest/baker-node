@@ -60,6 +60,11 @@ class TestBakerNode(unittest.TestCase):
 
         get_bake_queue().clear()
 
+    def setUp(self):
+        prefs = get_prefs()
+        # Use synchronous baking for tests by default
+        prefs.background_baking = False
+
     def tearDown(self):
         self.node_tree.nodes.clear()
 
@@ -239,9 +244,6 @@ class TestBakerNode(unittest.TestCase):
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_3_2_attr_bake(self):
-        # Use synchronous baking
-        get_prefs().background_baking = False
-
         target_attr = self.attr_target_1
         wrong_attr = self.attr_target_2
 
@@ -267,8 +269,6 @@ class TestBakerNode(unittest.TestCase):
         self._assert_color_attr_equal(target_attr, (0.5, 0.5, 0.5, 1.0))
 
     def test_3_3_img_plane_bake(self):
-        get_prefs().background_baking = False
-
         baker_node = self._new_baker_node("img_plane_bake_test")
         img_target = self.img_target
 
