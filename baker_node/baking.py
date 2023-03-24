@@ -142,8 +142,11 @@ class _BakerNodeBaker:
         if self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             self._setup_target_image()
 
-        elif self._bake_type == 'COLOR_ATTRIBUTE':
+        elif self._bake_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
             self._setup_target_attr()
+
+        else:
+            raise RuntimeError(f"Unrecognised target type {self._bake_type}")
 
     def _setup_target_attr(self) -> None:
         """Sets the baker node's target_attribute as the bake target."""
@@ -152,7 +155,7 @@ class _BakerNodeBaker:
             raise TypeError(f"{self._object.name}'s data does not support "
                             f"color attributes (type: {self._object.type})")
 
-        target_name = self.baker_node.target_attribute
+        target_name = self.baker_node.bake_target
         target = mesh.color_attributes.get(target_name)
 
         if target is None:
@@ -310,6 +313,33 @@ class _BakerNodeBaker:
         return uv_map
 
 
+class _BakerNodePostprocess:
+    def __init__(self, baker_node, obj=None):
+        self.baker_node = baker_node
+
+        if obj is None:
+            obj = baker_node.bake_object
+
+        self._object: Optional[bpy.types.Object] = obj
+
+    def _postprocess_vertex_mask(self) -> None:
+        obj = self._object
+        if obj is None or obj.type != 'MESH':
+            return
+        utils.ensure_sculpt_mask(obj.data)
+
+        mesh = obj.data
+
+        color_attr = mesh.color_attributes.get(self.baker_node.bake_target)
+        if color_attr is not None:
+            utils.copy_color_attr_to_mask(color_attr)
+            mesh.color_attributes.remove(color_attr)
+
+    def postprocess(self) -> None:
+        if self.baker_node.target_type == 'VERTEX_MASK':
+            self._postprocess_vertex_mask()
+
+
 def perform_baker_node_bake(baker_node, obj=None, immediate=False):
     """Bakes a baker node according to its properties.
     Assumes that no bake job is currently running.
@@ -317,3 +347,11 @@ def perform_baker_node_bake(baker_node, obj=None, immediate=False):
     baker = _BakerNodeBaker(baker_node, obj=obj)
 
     baker.bake(immediate=immediate)
+
+
+def postprocess_baker_node(baker_node, obj=None) -> None:
+    """Should be called on a BakerNode when its bake is complete.
+    obj should be a bpy.types.Object or None in which case baker_node's
+    bake_object property is used.
+    """
+    _BakerNodePostprocess(baker_node, obj).postprocess()

@@ -121,6 +121,9 @@ class _TreeBuilder:
             baked_val_soc = nodes[NodeNames.baked_img].outputs[0]
         elif baker_node.target_type == 'COLOR_ATTRIBUTE':
             baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]
+        elif baker_node.target_type == 'VERTEX_MASK':
+            # No outputs for 'VERTEX_MASK'
+            return
         else:
             raise ValueError(f"Unknown target type '{baker_node.target_type}'")
 

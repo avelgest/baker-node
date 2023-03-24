@@ -61,7 +61,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an axis-aligned "
                 "plane"),
                ('COLOR_ATTRIBUTE', "Color Attribute",
-                "Bake to a color attribute on a mesh")),
+                "Bake to a color attribute on a mesh"),
+               ('VERTEX_MASK', "Sculpt Mask", "Bake to an object's sculpt "
+                "mask")
+               ),
         default='IMAGE_TEX_UV',
         update=lambda self, _: self._relink_node_tree()
     )
@@ -322,6 +325,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if not self.bake_in_progress:
             return
 
+        try:
+            baking.postprocess_baker_node(self)
+        except Exception as e:
+            self.on_bake_cancel()
+            raise e
+
         self.is_baked = True
         self._on_bake_end()
 
@@ -345,12 +354,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """Creates and returns a color attribute for this BakerNode
         on mesh.
         """
-        prefs = get_prefs()
+        if self.target_type == 'VERTEX_MASK':
+            return mesh.color_attributes.new(name, 'FLOAT_COLOR', 'POINT')
 
         dtype = ('FLOAT_COLOR' if self._guess_should_bake_float()
                  else 'BYTE_COLOR')
 
-        return mesh.color_attributes.new(name, dtype, prefs.auto_target_domain)
+        return mesh.color_attributes.new(name, dtype,
+                                         get_prefs().auto_target_domain)
 
     def _update_synced_nodes(self) -> None:
         if not self.sync:
@@ -507,10 +518,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """
         if self.cycles_target_enum == 'IMAGE_TEXTURES':
             return self.target_image
+        elif self.target_type == 'VERTEX_MASK':
+            return self._temp_color_attr
         return self.target_attribute
 
     @bake_target.setter
     def bake_target(self, value: Optional[BakeTarget]) -> None:
+        if self.target_type == 'VERTEX_MASK':
+            raise TypeError("Cannot set bake_target for 'VERTEX_MASK' "
+                            "bake type")
         if self.cycles_target_enum == 'IMAGE_TEXTURES':
             self.target_image = value
         else:
@@ -521,7 +537,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """The value (str) of bpy.types.BakeSettings.target that should
         be used. Either 'IMAGE_TEXTURES' or 'VERTEX_COLORS'.
         """
-        if self.target_type == 'COLOR_ATTRIBUTE':
+        if self.target_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
             return 'VERTEX_COLORS'
         return 'IMAGE_TEXTURES'
 
@@ -535,6 +551,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def target_image(self, image: Optional[bpy.types.Image]):
         image_node = internal_tree.get_target_image_node(self, True)
         image_node.image = image
+
+    @property
+    def _temp_color_attr(self) -> str:
+        """The name of the temporary color attribute used by this node
+        when needed,
+        """
+        return f"_{self.identifier}.tmp"
 
     @property
     def node_tree_name(self) -> str:

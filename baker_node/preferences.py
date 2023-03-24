@@ -77,6 +77,12 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         min=0, soft_max=1024
     )
 
+    use_numpy: BoolProperty(
+        name="Use NumPy",
+        description="Allows the add-on to use NumPy for certain operations",
+        default=True
+    )
+
     def draw(self, _context):
         layout = self.layout
         flow = layout.column_flow(columns=2)

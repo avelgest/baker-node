@@ -212,10 +212,13 @@ class TestBakerNode(unittest.TestCase):
         self.assertEqual(baker_node.bake_target, "test")
         self.assertEqual(baker_node.bake_target, baker_node.target_attribute)
 
-    def test_3_1_img_bake(self):
-        # Use synchronous baking
-        get_prefs().background_baking = False
+        baker_node.target_type = 'VERTEX_MASK'
+        # bake_target should be automatically set to the name of a
+        # temporary color attribute
+        self.assertIsInstance(baker_node.bake_target, str)
+        self.assertTrue(baker_node.bake_target)
 
+    def test_3_1_img_bake(self):
         baker_node = self._new_baker_node("img_bake_test")
         img_target = self.img_target
 
@@ -294,6 +297,34 @@ class TestBakerNode(unittest.TestCase):
             self.assertAlmostEqual(x, 0.5, delta=0.01)
 
         baker_node.target_image = None
+
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_3_4_sculpt_mask_bake(self):
+        baker_node = self._new_baker_node("sculpt_mask_bake_test")
+        baker_node.target_type = 'VERTEX_MASK'
+
+        mesh = self.obj.data
+        num_col_attrs = len(mesh.color_attributes)
+
+        value_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        value_node.outputs[0].default_value = (0.5, 0.5, 0.5, 1.0)
+        self.node_tree.links.new(baker_node.inputs[0], value_node.outputs[0])
+
+        baker_node.schedule_bake()
+
+        self.assertTrue(baker_node.is_baked)
+        self.assertFalse(baker_node.bake_in_progress)
+
+        # Check that mesh now has a vertex paint mask
+        self.assertTrue(mesh.vertex_paint_masks)
+
+        # Check that the temp color_attribute used during baking
+        # has been deleted.
+        self.assertEqual(len(mesh.color_attributes), num_col_attrs)
+
+        mask = mesh.vertex_paint_masks[0]
+        for x in mask.data:
+            self.assertAlmostEqual(x.value, 0.5, delta=0.001)
 
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")

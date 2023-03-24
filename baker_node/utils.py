@@ -6,18 +6,34 @@ import types
 import typing
 import sys
 
+from array import array
 from typing import Any, Callable, Collection, List, Optional, Union
 
+import bmesh
 import bpy
 
 from bpy.types import ShaderNodeTree
 
+from . import preferences
 
 _NOT_FOUND = object()
 
 
 def get_bake_queue():
     return bpy.context.window_manager.bkn_bake_queue
+
+
+def _get_numpy() -> Optional:
+    """Returns the numpy module if available and allowed by the add-on
+    preferences otherwise returns None.
+    """
+    if preferences.get_prefs().use_numpy:
+        try:
+            import numpy
+        except ImportError:
+            return None
+        return numpy
+    return None
 
 
 def get_node_by_attr(nodes,
@@ -131,6 +147,64 @@ def safe_baker_node_getter(baker_node
                                     baker_node_id)
         return None
     return get_baker_node
+
+
+def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> bpy.types.MeshPaintMaskLayer:
+    """Ensures that mesh has a sculpt mask (vertex paint mask).
+    This may invalidate any Python variables that refer to mesh data
+    (e.g. color attributes). Returns the meshes sculpt mask.
+    """
+    if mesh.vertex_paint_masks:
+        return mesh.vertex_paint_masks[0]
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.verts.layers.paint_mask.new()
+    bm.to_mesh(mesh)
+    bm.free()
+    return mesh.vertex_paint_masks[0]
+
+
+def copy_color_attr_to_mask(color_attr: bpy.types.Attribute,
+                            op: Optional = None) -> None:
+    """Copies the Red channel of color_attr to the vertex paint mask
+    of the same mesh. If op is callable then it will be used when to
+    combine color_attr with the existing value
+    i.e. new = op(old, color_attr).
+    utils.ensure_paint_mask should be called beforehand.
+    """
+    mesh = color_attr.id_data
+
+    if op is not None:
+        raise NotImplementedError("op parameter has not been implemented")
+
+    if color_attr.domain != 'POINT':
+        raise TypeError("Only vertex color attributes can be converted to "
+                        "masks.")
+
+    if not mesh.vertex_paint_masks:
+        raise RuntimeError("Mesh has no vertex paint masks (sculpt mask)")
+
+    from_data = color_attr.data
+    if not from_data:
+        return
+
+    total_len = len(from_data) * len(from_data[0].color)
+
+    np = _get_numpy() if total_len > 1000000 else None
+    if np:
+        arr = np.zeros(total_len, dtype="f")
+    else:
+        arr = array("f", [0]) * total_len
+
+    from_data.foreach_get("color", arr)
+
+    # Only use the red channel
+    arr = arr[::4]
+
+    mask = mesh.vertex_paint_masks[0]
+
+    mask.data.foreach_set('value', arr)
 
 
 def import_all(module_names: Collection[str],
