@@ -516,11 +516,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         nodes target type (str for color attributes or Image for image
         textures).
         """
-        if self.cycles_target_enum == 'IMAGE_TEXTURES':
-            return self.target_image
-        elif self.target_type == 'VERTEX_MASK':
+        if self.target_type == 'COLOR_ATTRIBUTE':
+            return self.target_attribute
+        if self.target_type == 'VERTEX_MASK':
             return self._temp_color_attr
-        return self.target_attribute
+        return self.target_image
 
     @bake_target.setter
     def bake_target(self, value: Optional[BakeTarget]) -> None:
