@@ -140,6 +140,7 @@ class _BakerNodeBaker:
 
     def _setup_target(self) -> None:
         if self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
+            self._deselect_all_nodes()
             self._setup_target_image()
 
         elif self._bake_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
@@ -219,7 +220,6 @@ class _BakerNodeBaker:
 
         with contextlib.ExitStack() as self._exit_stack:
 
-            self._deselect_all_nodes()
             self._setup_target()
             self._init_ma_output_node()
             self._set_bake_settings()
