@@ -204,6 +204,18 @@ class TestBakerNode(unittest.TestCase):
         self.assertEqual(baker_node.bake_target, self.img_target)
         self.assertEqual(baker_node.bake_target, baker_node.target_image)
 
+        baker_node.target_type = 'IMAGE_TEX_PLANE'
+
+        baker_node.bake_target = None
+        self.assertIsNone(baker_node.bake_target)
+
+        baker_node.bake_target = self.img_target
+        self.assertEqual(baker_node.bake_target, self.img_target)
+
+        # Test targets that require color attributes below
+        if not supports_color_attrs:
+            return
+
         baker_node.target_type = 'COLOR_ATTRIBUTE'
         self.assertIsInstance(baker_node.bake_target, str)
         self.assertEqual(baker_node.bake_target, "")

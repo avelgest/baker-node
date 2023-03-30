@@ -4,7 +4,10 @@ import unittest
 
 import bpy
 
+from ..baker_node import preferences
 from ..baker_node import utils
+
+supports_color_attrs = preferences.supports_color_attributes
 
 
 class TestUtils(unittest.TestCase):
@@ -31,6 +34,7 @@ class TestUtils(unittest.TestCase):
         bake_queue = utils.get_bake_queue()
         self.assertIsNotNone(bake_queue)
 
+    @unittest.skipUnless(supports_color_attrs, "No color attribute support")
     @unittest.skipUnless(hasattr(bpy.types.bpy_prop_collection, "foreach_get"),
                          "foreach_get not supported")
     def test_copy_color_attr_to_mask(self):

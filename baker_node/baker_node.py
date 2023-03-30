@@ -19,6 +19,7 @@ from bpy.props import (BoolProperty,
 from . import bake_queue
 from . import baking
 from . import internal_tree
+from . import preferences
 from . import utils
 
 from .preferences import get_prefs
@@ -34,6 +35,23 @@ def _prop_search(layout: bpy.types.UILayout, *args, **kwargs):
     if bpy.app.version < (3, 2):
         kwargs.pop("results_are_suggestions", None)
     return layout.prop_search(*args, **kwargs)
+
+
+target_types = [
+   ('IMAGE_TEX_UV', "Image (UV)", "Bake to an image using a "
+    "UV-mapped object"),
+   ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an axis-aligned "
+    "plane"),
+   ('COLOR_ATTRIBUTE', "Color Attribute",
+    "Bake to a color attribute on a mesh"),
+   ('VERTEX_MASK', "Sculpt Mask", "Bake to an object's sculpt "
+    "mask")
+]
+
+if not preferences.supports_color_attributes:
+    # Remove target types that require color attribute support
+    target_types = [x for x in target_types
+                    if x[0] not in ('COLOR_ATTRIBUTE', 'VERTEX_MASK')]
 
 
 class BakerNode(bpy.types.ShaderNodeCustomGroup):
@@ -56,15 +74,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     target_type: EnumProperty(
         name="Bake Mode",
         description="The type of target to bake to",
-        items=(('IMAGE_TEX_UV', "Image (UV)", "Bake to an image using a "
-                "UV-mapped object"),
-               ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an axis-aligned "
-                "plane"),
-               ('COLOR_ATTRIBUTE', "Color Attribute",
-                "Bake to a color attribute on a mesh"),
-               ('VERTEX_MASK', "Sculpt Mask", "Bake to an object's sculpt "
-                "mask")
-               ),
+        items=target_types,
         default='IMAGE_TEX_UV',
         update=lambda self, _: self._relink_node_tree()
     )
@@ -235,14 +245,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 row.prop(self, "target_attribute", text="", icon="DOT")
 
     def draw_buttons(self, context, layout):
-        prefs = get_prefs()
-
         # Draw the "Bake"/"Cancel" button
         self._draw_bake_button(context, layout)
 
         col = layout.column(align=True)
-        if prefs.supports_color_attributes:
-            col.prop(self, "target_type", text="")
+        col.prop(self, "target_type", text="")
 
         self._draw_target_props(context, layout)
 
