@@ -2,12 +2,15 @@
 
 import contextlib
 import math
+import operator
 import time
+import typing
 import warnings
 
 from typing import Optional
 
 import bpy
+import mathutils
 
 from bpy.types import NodeSocket
 from mathutils import Matrix
@@ -15,6 +18,29 @@ from mathutils import Matrix
 from . import internal_tree
 from . import utils
 from .preferences import get_prefs
+
+
+# How to Combine the baked value with the existing value.
+# Currently only used for the VERTEX_MASK target type.
+COMBINE_OP_ENUM = (
+    ('REPLACE', "Replace", ""),
+    ('ADD', "Add", ""),
+    ('SUBTRACT', "Subtract", ""),
+    ('MULTIPLY', "Multiply", ""),
+)
+
+_NumpyArrayType = "numpy.ndarray"
+_VectorType = typing.Union[_NumpyArrayType, mathutils.Vector]
+_CombineOp = typing.Callable[[_VectorType, _VectorType], _VectorType]
+
+# Combine op functions
+# Functions should be of the form combine_op(existing, new) -> combined
+_COMBINE_OPS: dict[str, Optional[_CombineOp]] = {
+    'REPLACE': None,
+    'ADD': operator.add,
+    'SUBTRACT': operator.sub,
+    'MULTIPLY': operator.mul
+}
 
 
 class _BakerNodeBaker:
@@ -314,6 +340,10 @@ class _BakerNodeBaker:
 
 
 class _BakerNodePostprocess:
+    """Class for processing a BakerNode that has just finished its bake.
+    The process method of an instance of this class should be called on
+    a BakerNode soon after its bake has completed.
+    """
     def __init__(self, baker_node, obj=None):
         self.baker_node = baker_node
 
@@ -332,7 +362,8 @@ class _BakerNodePostprocess:
 
         color_attr = mesh.color_attributes.get(self.baker_node.bake_target)
         if color_attr is not None:
-            utils.copy_color_attr_to_mask(color_attr)
+            combine_op = _COMBINE_OPS[self.baker_node.target_combine_op]
+            utils.copy_color_attr_to_mask(color_attr, combine_op)
             mesh.color_attributes.remove(color_attr)
 
     def postprocess(self) -> None:

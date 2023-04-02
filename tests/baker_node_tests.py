@@ -314,6 +314,7 @@ class TestBakerNode(unittest.TestCase):
     def test_3_4_sculpt_mask_bake(self):
         baker_node = self._new_baker_node("sculpt_mask_bake_test")
         baker_node.target_type = 'VERTEX_MASK'
+        baker_node.target_combine_op = 'REPLACE'
 
         mesh = self.obj.data
         num_col_attrs = len(mesh.color_attributes)
@@ -337,6 +338,14 @@ class TestBakerNode(unittest.TestCase):
         mask = mesh.vertex_paint_masks[0]
         for x in mask.data:
             self.assertAlmostEqual(x.value, 0.5, delta=0.001)
+
+        # Test combine operations
+        baker_node.target_combine_op = 'MULTIPLY'
+        baker_node.schedule_bake()
+
+        # Should have multiplied mask by value_node's value (0.5)
+        for x in mask.data:
+            self.assertAlmostEqual(x.value, 0.25, delta=0.001)
 
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")

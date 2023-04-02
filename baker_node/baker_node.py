@@ -100,6 +100,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                ('YZ', "YZ", ""))
     )
 
+    # For target_type == VERTEX_MASK
+    target_combine_op: EnumProperty(
+        name="Operation",
+        description="How the baked value should be combined with the existing "
+                    "value",
+        items=baking.COMBINE_OP_ENUM,
+        default='REPLACE'
+    )
+
     # N.B. A python property is used for target_image to prevent
     # increasing the images user count.
 
@@ -243,6 +252,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                              text="", icon='ADD')
             else:
                 row.prop(self, "target_attribute", text="", icon="DOT")
+
+        elif self.target_type == 'VERTEX_MASK':
+            layout.prop(self, "target_combine_op", text="")
 
     def draw_buttons(self, context, layout):
         # Draw the "Bake"/"Cancel" button
