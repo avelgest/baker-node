@@ -46,10 +46,8 @@ class TestBakerNode(unittest.TestCase):
                                              is_data=True, float_buffer=True)
 
         # Color Attributes (On newer blender versions)
-        cls.attr_target_1 = mesh.attributes.new("test_attr_1", 'BYTE_COLOR',
-                                                'POINT')
-        cls.attr_target_2 = mesh.attributes.new("test_attr_2", 'BYTE_COLOR',
-                                                'POINT')
+        mesh.attributes.new("test_attr_1", 'BYTE_COLOR', 'POINT')
+        mesh.attributes.new("test_attr_2", 'BYTE_COLOR', 'POINT')
 
     @classmethod
     def tearDownClass(cls):
@@ -67,6 +65,14 @@ class TestBakerNode(unittest.TestCase):
 
     def tearDown(self):
         self.node_tree.nodes.clear()
+
+    @property
+    def attr_target_1(self):
+        return self.obj.data.attributes["test_attr_1"]
+
+    @property
+    def attr_target_2(self):
+        return self.obj.data.attributes["test_attr_2"]
 
     @contextlib.contextmanager
     def ctx_override_shader_editor(self):
@@ -344,6 +350,7 @@ class TestBakerNode(unittest.TestCase):
         baker_node.schedule_bake()
 
         # Should have multiplied mask by value_node's value (0.5)
+        mask = mesh.vertex_paint_masks[0]
         for x in mask.data:
             self.assertAlmostEqual(x.value, 0.25, delta=0.001)
 
