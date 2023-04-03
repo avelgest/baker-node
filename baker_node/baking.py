@@ -362,6 +362,10 @@ class _BakerNodePostprocess:
 
         color_attr = mesh.color_attributes.get(self.baker_node.bake_target)
         if color_attr is not None:
+            # Add an undo step before modifying the mask
+            if bpy.ops.ed.undo_push.poll():
+                bpy.ops.ed.undo_push(message="Modify Sculpt Mask")
+
             combine_op = _COMBINE_OPS[self.baker_node.target_combine_op]
             utils.copy_color_attr_to_mask(color_attr, combine_op)
             mesh.color_attributes.remove(color_attr)
