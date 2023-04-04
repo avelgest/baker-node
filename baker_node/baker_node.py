@@ -257,11 +257,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             layout.prop(self, "target_combine_op", text="")
 
     def draw_buttons(self, context, layout):
+        layout.context_pointer_set("baker_node", self)
+
         # Draw the "Bake"/"Cancel" button
         self._draw_bake_button(context, layout)
 
-        col = layout.column(align=True)
-        col.prop(self, "target_type", text="")
+        row = layout.row(align=True)
+        row.prop(self, "target_type", text="")
+        row.popover("BKN_PT_baker_node_settings", text="", icon='PREFERENCES')
 
         self._draw_target_props(context, layout)
 
@@ -635,8 +638,28 @@ def bkn_node_context_menu_func(self, context):
             col.operator("image.reload", text="Discard Image Changes")
 
 
+class BakerNodeSettingsPanel(bpy.types.Panel):
+    bl_idname = "BKN_PT_baker_node_settings"
+    bl_label = "Settings"
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'WINDOW'
+    bl_description = "Additional settings for this baker node"
+
+    def draw(self, context):
+        layout = self.layout
+
+        baker_node = getattr(context, "baker_node", None)
+        if baker_node is None:
+            layout.label(text="No baker node set", icon='ERROR')
+            return
+
+        layout.prop(baker_node, "samples")
+        layout.prop(baker_node, "specific_bake_object")
+
+
 def register():
     bpy.utils.register_class(BakerNode)
+    bpy.utils.register_class(BakerNodeSettingsPanel)
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.append(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.append(bkn_node_context_menu_func)
 
@@ -644,4 +667,5 @@ def register():
 def unregister():
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.remove(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.remove(bkn_node_context_menu_func)
+    bpy.utils.unregister_class(BakerNodeSettingsPanel)
     bpy.utils.unregister_class(BakerNode)
