@@ -123,7 +123,7 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         self.in_progress = False
         baker_node = self.get_baker_node()
         if baker_node is not None:
-            baker_node.on_bake_cancel()
+            baker_node.on_bake_cancel(self.bake_object)
 
     def on_complete(self) -> None:
         """Called by BakeQueue if this job completes successfully."""
@@ -135,7 +135,7 @@ class BakeQueueJob(bpy.types.PropertyGroup):
 
         baker_node = self.get_baker_node()
         if baker_node is not None:
-            baker_node.on_bake_complete()
+            baker_node.on_bake_complete(self.bake_object)
 
     def run(self) -> None:
         """Runs this bake job. Throws a BakeJobError if the job has

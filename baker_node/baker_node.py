@@ -342,13 +342,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             # so need to update cycles after the bake.
             bpy.context.scene.update_render_engine()
 
-    def on_bake_complete(self) -> None:
+    def on_bake_complete(self, obj: bpy.types.Object = None) -> None:
         """Called when the bake has been completed."""
         if not self.bake_in_progress:
             return
 
         try:
-            baking.postprocess_baker_node(self)
+            baking.postprocess_baker_node(self, obj)
         except Exception as e:
             self.on_bake_cancel()
             raise e
@@ -356,7 +356,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.is_baked = True
         self._on_bake_end()
 
-    def on_bake_cancel(self) -> None:
+    def on_bake_cancel(self, _obj: bpy.types.Object = None) -> None:
         """Called if the bake is cancelled."""
         if not self.bake_in_progress:
             return
