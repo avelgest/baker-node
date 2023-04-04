@@ -134,6 +134,8 @@ def safe_node_tree_getter(node_tree: ShaderNodeTree
             return None if ma is None else ma.node_tree
 
         node_tree = bpy.data.node_groups.get(node_tree_name)
+        if node_tree is None:
+            return None
         return node_tree if node_tree.type == 'SHADER' else None
 
     return get_node_tree

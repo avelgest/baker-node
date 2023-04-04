@@ -80,7 +80,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     )
 
     bake_in_progress: BoolProperty(
-        name="Bake Finished",
+        name="Bake in Progress",
         description="True if this node has a pending or active bake job",
         default=False
     )
@@ -310,7 +310,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.bake_in_progress = True
         bake_queue.add_bake_job(self)
 
-        self._update_synced_nodes()
+        self._bake_synced_nodes()
 
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
@@ -364,11 +364,16 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.is_baked = False
         self._on_bake_end()
 
-    def cancel_bake(self) -> None:
+    def cancel_bake(self, synced: bool = False) -> None:
         """Delete all bake jobs from this baker node (this will not
-        cancel a job that has already started).
+        cancel a job that has already started). If synced is True then
+        also cancel the bake of all synced nodes.
         """
         bake_queue.cancel_bake_jobs(self)
+
+        if synced:
+            for node in self._find_synced_nodes():
+                node.cancel_bake(False)
 
     def create_color_attr_on(self,
                              mesh: bpy.types.Mesh,
@@ -385,11 +390,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return mesh.color_attributes.new(name, dtype,
                                          get_prefs().auto_target_domain)
 
-    def _update_synced_nodes(self) -> None:
+    def _bake_synced_nodes(self) -> None:
         if not self.sync:
             return
 
-        # Change bake or free all synced nodes
+        # Bake all synced nodes
         for node in self._find_synced_nodes():
             if not node.mute:
                 with node.prevent_sync():

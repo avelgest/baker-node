@@ -7,11 +7,12 @@ import warnings
 
 import bpy
 
+from ..baker_node import preferences
 from ..baker_node.baker_node import BakerNode
-from ..baker_node.preferences import get_prefs
 from ..baker_node.utils import get_bake_queue
 
-supports_color_attrs = get_prefs().supports_color_attributes
+supports_background_baking = preferences.supports_background_baking
+supports_color_attrs = preferences.supports_color_attributes
 supports_temp_override = hasattr(bpy.types.Context, "temp_override")
 
 
@@ -59,7 +60,7 @@ class TestBakerNode(unittest.TestCase):
         get_bake_queue().clear()
 
     def setUp(self):
-        prefs = get_prefs()
+        prefs = preferences.get_prefs()
         # Use synchronous baking for tests by default
         prefs.background_baking = False
 
@@ -386,7 +387,7 @@ class TestBakerNode(unittest.TestCase):
         self.assertFalse(baker_node_2.bake_in_progress)
 
     def test_5_2_auto_create_target_img(self):
-        prefs = get_prefs()
+        prefs = preferences.get_prefs()
         prefs.auto_target_float_img = False
         auto_size = prefs.auto_target_img_size
 

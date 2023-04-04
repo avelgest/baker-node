@@ -82,12 +82,17 @@ class BKN_OT_bake_button(BakerNodeButtonBase, Operator):
 class BKN_OT_cancel_button(BakerNodeButtonBase, Operator):
     bl_idname = "node.bkn_cancel_button"
     bl_label = "Cancel"
-    bl_description = "Cancel this node's scheduled bake"
+    bl_description = ("Cancel this node's scheduled bake "
+                      "(shift click also cancels synced nodes' bakes)")
 
     def execute(self, context):
+        self.get_baker_node(context).cancel_bake()
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
         baker_node = self.get_baker_node(context)
 
-        baker_node.cancel_bake()
+        baker_node.cancel_bake(synced=event.shift)
         return {'FINISHED'}
 
 

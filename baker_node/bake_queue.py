@@ -311,9 +311,12 @@ class BakeQueue(bpy.types.PropertyGroup):
             raise ValueError("Expected baker_node to have an 'identifier'"
                              " property")
 
+        active_job = self.active_job
+
         # indices of all jobs from baker_node
         indices = [idx for idx, job in enumerate(self.jobs)
-                   if job.node_id == baker_node.identifier]
+                   if job.node_id == baker_node.identifier
+                   and job != active_job]
 
         # Remove from back to front so indices remain valid
         indices.sort(reverse=True)
