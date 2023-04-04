@@ -76,7 +76,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         description="The type of target to bake to",
         items=target_types,
         default='IMAGE_TEX_UV',
-        update=lambda self, _: self._relink_node_tree()
+        update=lambda self, _: self._target_type_update()
     )
 
     bake_in_progress: BoolProperty(
@@ -275,8 +275,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         self.draw_buttons(context, layout)
 
-    def _relink_node_tree(self) -> None:
+    def _target_type_update(self) -> None:
         internal_tree.relink_node_tree(self)
+
+        # Hide output socket for sculpt mask bake target
+        self.outputs[0].enabled = (self.target_type != 'VERTEX_MASK')
 
     def _refresh_targets(self) -> None:
         internal_tree.refresh_targets(self)
