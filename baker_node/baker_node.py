@@ -82,7 +82,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     bake_in_progress: BoolProperty(
         name="Bake in Progress",
         description="True if this node has a pending or active bake job",
-        default=False
+        default=False,
+        get=lambda self: self._bake_in_progress
     )
 
     target_attribute: StringProperty(
@@ -163,7 +164,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         self.identifier = self._create_identifier(node_tree=node_tree)
         self.is_baked = False
-        self.bake_in_progress = False
         self.samples = get_prefs().default_samples
         self.width = 210
 
@@ -172,7 +172,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def copy(self, node):
         self.identifier = self._create_identifier(node_tree=node.id_data)
 
-        self.bake_in_progress = False
         self.is_baked = False
 
         self.node_tree = internal_tree.create_node_tree_for(self)
@@ -310,7 +309,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                        else "No bake target set")
                 raise self.ScheduleBakeError(msg)
 
-        self.bake_in_progress = True
         bake_queue.add_bake_job(self)
 
         self._bake_synced_nodes()
@@ -322,7 +320,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         attempts the bake immediately. If background is True then the
         bake will run in the background (if supported).
         """
-        self.bake_in_progress = True
 
         if background and not get_prefs().supports_background_baking:
             background = False
@@ -338,7 +335,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def _on_bake_end(self) -> None:
         """Called when the bake is either completed or cancelled."""
-        self.bake_in_progress = False
 
         if bpy.context.scene.render.engine == 'CYCLES':
             # Image may appear blank while baking in Cycles render view
@@ -539,6 +535,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 existing_attrs |= {x.name for x in obj.data.color_attributes}
             name = utils.suffix_num_unique_in(name, existing_attrs)
         return name
+
+    @property
+    def _bake_in_progress(self) -> bool:
+        return bake_queue.has_scheduled_job(self)
 
     @property
     def bake_target(self) -> Optional[BakeTarget]:
