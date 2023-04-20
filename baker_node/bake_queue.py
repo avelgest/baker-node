@@ -39,8 +39,12 @@ class BakeJobError(RuntimeError):
 
 
 class BakeQueueJob(bpy.types.PropertyGroup):
-    # TODO add unique identifier 'name' for jobs?
-
+    # Currently the same as the node_id property
+    identifier: bpy.props.StringProperty(
+        name="identifier",
+        description="The identifier of this BakeQueueJob",
+        get=lambda self: self["name"]
+    )
     # Store a pointer to a Material if the node is in a material's
     # node tree or to the node group that it's in otherwise.
     # (storing a pointer directly to an embedded node tree can cause
@@ -95,6 +99,10 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         self.node_id = baker_node.identifier
         self.bake_object = baker_node.bake_object
         self.background = background
+
+        # Enables using 'in' keyword to search a PropertyCollection
+        # using a baker's identifier
+        self["name"] = baker_node.identifier
 
         self.node_tree = baker_node.id_data
         if not hasattr(self.node_tree, "nodes"):
@@ -287,6 +295,10 @@ class BakeQueue(bpy.types.PropertyGroup):
         """
         in_background = self.bake_in_background and not immediate
 
+        # Do nothing if baker_node already has a queued job
+        if self.has_baker_node_job(baker_node):
+            return
+
         job = self.jobs.add()
         try:
             job.init_from_baker_node(baker_node, in_background)
@@ -333,11 +345,7 @@ class BakeQueue(bpy.types.PropertyGroup):
         """Returns whether baker_node has any sceduled or active jobs
         in this bake queue.
         """
-        active = self.active_job
-        if active is not None and active.node_id == baker_node.identifier:
-            return True
-
-        return any(x for x in self.jobs if x.node_id == baker_node.identifier)
+        return baker_node.identifier in self.jobs
 
     def job_cancel(self, job: BakeQueueJob) -> None:
         job.on_cancel()

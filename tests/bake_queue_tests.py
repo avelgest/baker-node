@@ -121,6 +121,8 @@ class TestBakeQueue(unittest.TestCase):
         self.assertEqual(job.node_name, self.baker_node.name)
         self.assertEqual(job.node_id, self.baker_node.identifier)
         self.assertEqual(job.get_baker_node(), self.baker_node)
+        self.assertEqual(job.identifier, job.node_id)
+        self.assertEqual(job["name"], job.node_id)
 
         # Job should now be the active job
         self.assertFalse(job.finished)
