@@ -10,7 +10,7 @@ bl_info = {
     "category": "Node",
     "location": "Shader Editor > Add > Output > Baker",
     "warning": "Beta version",
-    "doc_url": ""  # TODO
+    "doc_url": "https://github.com/avelgest/baker-node/wiki"
 }
 
 if "baker_node" in globals():
