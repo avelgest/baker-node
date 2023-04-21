@@ -281,7 +281,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         internal_tree.relink_node_tree(self)
 
         # Hide output socket for sculpt mask bake target
-        self.outputs[0].enabled = (self.target_type != 'VERTEX_MASK')
+        if self.target_type in ('IMAGE_TEX_PLANE', 'VERTEX_MASK'):
+            self.outputs[0].enabled = False
+        else:
+            self.outputs[0].enabled = True
 
     def _refresh_targets(self) -> None:
         internal_tree.refresh_targets(self)
