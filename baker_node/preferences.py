@@ -90,6 +90,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow.prop(self, "default_samples")
         flow.separator_spacer()
         flow.prop(self, "cycles_device")
+        flow.prop(self, "use_numpy")
         layout.separator()
 
         col = layout.column(align=True)

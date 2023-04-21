@@ -70,7 +70,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         default=False
     )
 
-    # TODO If color attributes are not supported then only allow images
     target_type: EnumProperty(
         name="Bake Mode",
         description="The type of target to bake to",
