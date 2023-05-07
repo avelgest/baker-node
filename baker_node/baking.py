@@ -29,6 +29,7 @@ COMBINE_OP_ENUM = (
     ('MULTIPLY', "Multiply", ""),
 )
 
+# Types for annotations
 _NumpyArrayType = "numpy.ndarray"
 _VectorType = typing.Union[_NumpyArrayType, mathutils.Vector]
 _CombineOp = typing.Callable[[_VectorType, _VectorType], _VectorType]
@@ -49,11 +50,11 @@ class _BakerNodeBaker:
     type.
     """
 
+    # The name of the Material Output node created by the baker
     MA_OUTPUT_NAME = "bkn_baker_ma_output"
 
     def __init__(self, baker_node, obj=None):
         self.baker_node = baker_node
-        self._added_nodes = []
 
         if baker_node.node_tree is None:
             raise ValueError("baker_node has no node_tree")
@@ -70,7 +71,10 @@ class _BakerNodeBaker:
         """Deselect all nodes in the target node tree. The nodes will
         be re-selected on clean up.
         """
+        # Names of all selected nodes
         selected_names = []
+
+        # Populate selected_names and deselect all nodes
         for node in self._target_tree.nodes:
             if node.select:
                 selected_names.append(node.name)
@@ -165,6 +169,9 @@ class _BakerNodeBaker:
         self._object = plane
 
     def _setup_target(self) -> None:
+        """Sets the target for baking from the baker_node's bake_target
+        property.
+        """
         if self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             self._deselect_all_nodes()
             self._setup_target_image()
@@ -283,6 +290,10 @@ class _BakerNodeBaker:
                                 first_interval=0.2)
 
     def _set_bake_settings(self) -> None:
+        """Sets the settings used for baking on the active scene.
+        The Changes made will automatically be reverted when
+        the baker's ExitStack closes.
+        """
         scene = bpy.context.scene
         baker_node = self.baker_node
         exit_stack = self._exit_stack
@@ -319,12 +330,15 @@ class _BakerNodeBaker:
 
     @property
     def _bake_socket(self) -> NodeSocket:
+        """The socket that should be connected to the Material Output
+        before baking."""
         nodes = self.baker_node.node_tree.nodes
         emit_node = nodes.get(internal_tree.NodeNames.emission_shader)
         return emit_node.outputs[0]
 
     @property
     def _bake_type(self) -> str:
+        """Same as self.baker_node.target_type"""
         return self.baker_node.target_type
 
     @property
@@ -356,11 +370,13 @@ class _BakerNodePostprocess:
         obj = self._object
         if obj is None or obj.type != 'MESH':
             return
+
+        # May invalidate any refrences to mesh's attributes
         utils.ensure_sculpt_mask(obj.data)
 
         mesh = obj.data
-
         color_attr = mesh.color_attributes.get(self.baker_node.bake_target)
+
         if color_attr is not None:
             # Add an undo step before modifying the mask
             if bpy.ops.ed.undo_push.poll():
