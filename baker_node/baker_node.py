@@ -333,7 +333,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             raise e
 
         if not background:
-            self.on_bake_complete()
+            self.on_bake_complete(obj)
 
     def _on_bake_end(self) -> None:
         """Called when the bake is either completed or cancelled."""
