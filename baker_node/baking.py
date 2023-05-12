@@ -7,8 +7,10 @@ import time
 import typing
 import warnings
 
+from array import array
 from typing import Optional
 
+import bmesh
 import bpy
 import mathutils
 
@@ -43,6 +45,10 @@ _COMBINE_OPS: dict[str, Optional[_CombineOp]] = {
     'MULTIPLY': operator.mul
 }
 
+# Names for the plane mesh/object used for baking previews
+_PREVIEW_OBJ_NAME = "Baker Node Preview Plane"
+_PREVIEW_MESH_NAME = "Baker Node Preview Plane"
+
 
 class _BakerNodeBaker:
     """Bakes a BakerNode's input(s) to it's target. Assumes that the
@@ -53,11 +59,13 @@ class _BakerNodeBaker:
     # The name of the Material Output node created by the baker
     MA_OUTPUT_NAME = "bkn_baker_ma_output"
 
-    def __init__(self, baker_node, obj=None):
+    def __init__(self, baker_node, obj=None, is_preview=False):
         self.baker_node = baker_node
 
         if baker_node.node_tree is None:
             raise ValueError("baker_node has no node_tree")
+
+        self.is_preview = is_preview
 
         # The object to use when baking
         self._object = baker_node.bake_object if obj is None else obj
@@ -119,6 +127,68 @@ class _BakerNodeBaker:
 
         self._exit_stack.callback(clean_up)
 
+    def _setup_target_plane_preview(self) -> None:
+        # For baking previews first bake to the color attribute of a
+        # subdivided plane then copy the color data to the preview
+        # image in the postprocessing step.
+        # Color attributes are used since they don't require adding a
+        # visible node to the node tree.
+        utils.ensure_name_deleted(bpy.data.meshes, _PREVIEW_MESH_NAME)
+        utils.ensure_name_deleted(bpy.data.objects, _PREVIEW_OBJ_NAME)
+
+        # TODO Support non-square previews based on AR of target image
+        max_res = get_prefs().preview_size
+
+        mesh = self._init_plane_mesh(_PREVIEW_MESH_NAME, max_res, max_res)
+
+        mesh.color_attributes.new('Color', 'BYTE_COLOR', 'POINT')
+
+        plane = bpy.data.objects.new(_PREVIEW_OBJ_NAME, mesh)
+        bpy.context.scene.collection.objects.link(plane)
+
+        # Set the plane to use the material containing the baker node
+        self._set_material_to_node_tree(plane)
+
+        # Use the plane as the bake object
+        self._object = plane
+        # N.B. Wait until postprocess before deleting plane.
+
+    def _init_plane_mesh(self, name, x_verts=2, y_verts=2,
+                         calc_uvs=False) -> bpy.types.Mesh:
+        """Initializes a plane using the """
+        bm = bmesh.new(use_operators=True)
+
+        align = self.baker_node.target_plane_align
+
+        # Align the plane to the target axes. The plane's normal should
+        # face either Front (-Y), Right (X) or Top (Z).
+        # N.B. Use 2 rotations for YZ so that UVs are correct
+        transform = Matrix.Identity(4)
+        if align != 'XY':
+            if align == 'YZ':
+                transform @= Matrix.Rotation(math.pi/2, 4, 'Z')
+            transform @= Matrix.Rotation(math.pi/2, 4, 'X')
+
+        if calc_uvs:
+            bm.loops.layers.uv.verify()
+
+        bmesh.ops.create_grid(bm, size=1, matrix=transform,
+                              x_segments=x_verts - 1, y_segments=y_verts - 1,
+                              calc_uvs=calc_uvs)
+
+        # Add a vertex at along the normal to ensure the plane's
+        # coordinates lie on the axes e.g (x, y, 0) for 'XY'
+        bm.faces.ensure_lookup_table()
+        # Use negative normal for XZ since the plane points to -Y
+        co = bm.faces[0].normal if align != 'XZ' else -bm.faces[0].normal
+        bm.verts.new(co)
+
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+
+        return mesh
+
     def _init_plane(self) -> None:
         """Initializes the plane used for the Image (Plane) target type."""
         align = self.baker_node.target_plane_align
@@ -148,6 +218,12 @@ class _BakerNodeBaker:
         plane = bpy.data.objects.new(".Baker Node Plane", mesh)
         bpy.context.scene.collection.objects.link(plane)
 
+        # Set the plane to use the material containing the baker node
+        self._set_material_to_node_tree(plane)
+
+        # Use the plane as the bake object
+        self._object = plane
+
         # Clean up callback
         plane_name = plane.name
 
@@ -157,22 +233,17 @@ class _BakerNodeBaker:
                 bpy.data.meshes.remove(plane.data)
         self._exit_stack.callback(clean_up)
 
-        # Set the plane to use the material containing the baker node
-        ma = utils.get_node_tree_ma(self.baker_node.id_data,
-                                    objs=[self._object],
-                                    search_groups=True)
-        if ma is None:
-            raise RuntimeError("Cannot find material for baker node")
-        plane.active_material = ma
-
-        # Use the plane as the bake object
-        self._object = plane
-
     def _setup_target(self) -> None:
         """Sets the target for baking from the baker_node's bake_target
         property.
         """
-        if self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
+        if self.is_preview:
+            if self._bake_type == 'IMAGE_TEX_PLANE':
+                self._setup_target_plane_preview()
+            else:
+                raise RuntimeError("Unsupported type for preview "
+                                   f"{self._bake_type}")
+        elif self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             self._deselect_all_nodes()
             self._setup_target_image()
 
@@ -249,7 +320,10 @@ class _BakerNodeBaker:
         """Perform the bake. If immediate is False then the bake will
         run in the background (if supported).
         """
-        exec_ctx = 'EXEC_DEFAULT'if immediate else 'INVOKE_DEFAULT'
+        if immediate or not get_prefs().supports_background_baking:
+            exec_ctx = 'EXEC_DEFAULT'
+        else:
+            exec_ctx = 'INVOKE_DEFAULT'
 
         with contextlib.ExitStack() as self._exit_stack:
 
@@ -321,12 +395,21 @@ class _BakerNodeBaker:
         cycles_props.film_exposure = 1.0
         # TODO add use_preview_adaptive_sampling/use_denoising to prefs?
         # cycles_props.use_preview_adaptive_sampling = True  # TODO ???
-        cycles_props.samples = baker_node.samples
+        cycles_props.samples = 1 if self.is_preview else baker_node.samples
         cycles_props.use_denoising = False
 
-        bake_props.target = baker_node.cycles_target_enum
+        bake_props.target = self._cycles_target_enum
         bake_props.use_clear = True
         # bake_props.use_selected_to_active = False  # TODO ???
+
+    def _set_material_to_node_tree(self, obj: bpy.types.Object) -> None:
+        """Set obj to use the material that contains the baker node."""
+        ma = utils.get_node_tree_ma(self.baker_node.id_data,
+                                    objs=[self._object],
+                                    search_groups=True)
+        if ma is None:
+            raise RuntimeError("Cannot find material for baker node")
+        obj.active_material = ma
 
     @property
     def _bake_socket(self) -> NodeSocket:
@@ -342,8 +425,17 @@ class _BakerNodeBaker:
         return self.baker_node.target_type
 
     @property
+    def _cycles_target_enum(self) -> str:
+        """The CyclesRenderSettings.bake_type value to use when baking."""
+        if self.is_preview:
+            return 'VERTEX_COLORS'
+        return self.baker_node.cycles_target_enum
+
+    @property
     def _uv_layer(self) -> str:
         """The UV map to use for baking."""
+        if self.is_preview:
+            return ""
         if self._bake_type == 'IMAGE_TEX_PLANE':
             return "UVMap"
         uv_map = self.baker_node.uv_map
@@ -358,8 +450,9 @@ class _BakerNodePostprocess:
     The process method of an instance of this class should be called on
     a BakerNode soon after its bake has completed.
     """
-    def __init__(self, baker_node, obj=None):
+    def __init__(self, baker_node, obj=None, is_preview=False):
         self.baker_node = baker_node
+        self.is_preview = is_preview
 
         if obj is None:
             obj = baker_node.bake_object
@@ -386,23 +479,54 @@ class _BakerNodePostprocess:
             utils.copy_color_attr_to_mask(color_attr, combine_op)
             mesh.color_attributes.remove(color_attr)
 
+    def _postprocess_preview(self) -> None:
+        # Copy the vertex color data from the preview plane to the
+        # preview image of the baker node
+        mesh = bpy.data.meshes.get(_PREVIEW_MESH_NAME)
+        if mesh is None:
+            warnings.warn("Preview mesh not found. Cannot complete preview "
+                          "generation.")
+            return
+
+        max_size = get_prefs().preview_size
+
+        preview = self.baker_node.preview_ensure()
+        preview.image_size = [max_size, max_size]
+
+        color_attr = mesh.color_attributes[0]
+
+        if len(color_attr.data) != max_size * max_size + 1:
+            raise RuntimeError("Color attribute has wrong size")
+
+        # N.B. Using foreach_get("color", preview.image_pixels_float)
+        # is possible, but is much slower than using an array
+        color_data = array("f", [0]) * (len(color_attr.data) * 4)
+
+        color_attr.data.foreach_get("color", color_data)
+        preview.image_pixels_float.foreach_set(color_data[:-4])
+
+        bpy.data.meshes.remove(mesh)
+
     def postprocess(self) -> None:
-        if self.baker_node.target_type == 'VERTEX_MASK':
+        if self.is_preview:
+            self._postprocess_preview()
+        elif self.baker_node.target_type == 'VERTEX_MASK':
             self._postprocess_vertex_mask()
 
 
-def perform_baker_node_bake(baker_node, obj=None, immediate=False):
+def perform_baker_node_bake(baker_node, obj=None,
+                            immediate=False, is_preview=False) -> None:
     """Bakes a baker node according to its properties.
     Assumes that no bake job is currently running.
     """
-    baker = _BakerNodeBaker(baker_node, obj=obj)
+    baker = _BakerNodeBaker(baker_node, obj=obj, is_preview=is_preview)
 
     baker.bake(immediate=immediate)
 
 
-def postprocess_baker_node(baker_node, obj=None) -> None:
+def postprocess_baker_node(baker_node, obj=None, is_preview=False) -> None:
     """Should be called on a BakerNode when its bake is complete.
     obj should be a bpy.types.Object or None in which case baker_node's
     bake_object property is used.
     """
-    _BakerNodePostprocess(baker_node, obj).postprocess()
+    _BakerNodePostprocess(baker_node, obj, is_preview).postprocess()

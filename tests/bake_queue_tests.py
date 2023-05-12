@@ -16,6 +16,9 @@ class BakerNodeMock(BakerNode):
     bl_idname = f"{BakerNode.bl_idname}_mock"
     bl_label = "BakerNode Mock"
 
+    def on_bake_complete(self, *_args, **_kwargs):
+        return
+
     def perform_bake(self, *_args, **_kwargs):
         return
 
@@ -123,6 +126,7 @@ class TestBakeQueue(unittest.TestCase):
         self.assertEqual(job.get_baker_node(), self.baker_node)
         self.assertEqual(job.identifier, job.node_id)
         self.assertEqual(job["name"], job.node_id)
+        self.assertFalse(job.is_preview)
 
         # Job should now be the active job
         self.assertFalse(job.finished)
@@ -130,6 +134,9 @@ class TestBakeQueue(unittest.TestCase):
         self.assertEqual(self.bake_queue.active_job, job)
 
         self.assertTrue(self.bake_queue.has_baker_node_job(self.baker_node))
+        self.assertFalse(
+            self.bake_queue.has_baker_node_preview_job(self.baker_node)
+            )
 
     def test_2_2_add_job_immediate(self):
         bake_queue = self.bake_queue
@@ -137,6 +144,42 @@ class TestBakeQueue(unittest.TestCase):
 
         # Job should be run immediately and have been removed
         self.assertEqual(len(bake_queue.jobs), 0)
+
+    @unittest.skipUnless(supports_bg_baking, "Background baking not supported")
+    def test_2_3_add_preview_job_async(self):
+        bake_queue = self.bake_queue
+        baker_node = self.baker_node
+
+        bake_queue.add_job_from_baker_node(baker_node, immediate=False,
+                                           is_preview=True)
+
+        self.assertEqual(len(bake_queue.jobs), 1)
+        self.assertFalse(bake_queue.has_baker_node_job(baker_node))
+        self.assertTrue(bake_queue.has_baker_node_preview_job(baker_node))
+
+        # Check that another job is not added for the same node
+        bake_queue.add_job_from_baker_node(baker_node, immediate=False,
+                                           is_preview=True)
+        self.assertEqual(len(bake_queue.jobs), 1)
+
+        job = bake_queue.jobs[0]
+        self.assertTrue(job.is_preview)
+        self.assertEqual(job.get_baker_node(), baker_node)
+        self.assertEqual(job.identifier, job.node_id)
+        self.assertEqual(job["name"], job.node_id)
+
+        # Job should now be the active job
+        self.assertFalse(job.finished)
+        self.assertTrue(job.in_progress)
+        self.assertEqual(bake_queue.active_job, job)
+
+    def test_2_4_add_preview_job_immediate(self):
+        bake_queue = self.bake_queue
+        bake_queue.add_job_from_baker_node(self.baker_node, immediate=True,
+                                           is_preview=True)
+
+        # Job should be run immediately and have been removed
+        self.assertFalse(bake_queue.jobs)
 
     def test_3_clear(self):
         self.bake_queue.add_job_from_baker_node(self.baker_node)

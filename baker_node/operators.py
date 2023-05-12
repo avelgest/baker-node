@@ -209,10 +209,25 @@ class BKN_OT_to_builtin(Operator):
         return {'FINISHED'}
 
 
+class BKN_OT_refresh_preview(BakerNodeButtonBase, Operator):
+    bl_idname = "node.bkn_refresh_preview"
+    bl_label = "Refresh Preview"
+    bl_description = "Updates this node's preview image"
+
+    def execute(self, context):
+        baker_node = self.get_baker_node(context)
+        if baker_node is None:
+            return {'CANCELLED'}
+
+        baker_node.schedule_preview_bake()
+        return {'FINISHED'}
+
+
 classes = (BKN_OT_bake_button,
            BKN_OT_cancel_button,
            BKN_OT_bake_nodes,
            BKN_OT_mute_all_toggle,
-           BKN_OT_to_builtin)
+           BKN_OT_to_builtin,
+           BKN_OT_refresh_preview)
 
 register, unregister = bpy.utils.register_classes_factory(classes)

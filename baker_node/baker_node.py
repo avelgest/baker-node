@@ -9,6 +9,7 @@ import typing
 from typing import Optional, List
 
 import bpy
+import bpy.utils.previews
 
 from bpy.props import (BoolProperty,
                        EnumProperty,
@@ -52,6 +53,11 @@ if not preferences.supports_color_attributes:
     # Remove target types that require color attribute support
     target_types = [x for x in target_types
                     if x[0] not in ('COLOR_ATTRIBUTE', 'VERTEX_MASK')]
+
+
+# ImagePreviewCollection for storing the previews for Baker nodes
+if "_preview_collection" not in globals():
+    _preview_collection = bpy.utils.previews.new()
 
 
 class BakerNode(bpy.types.ShaderNodeCustomGroup):
@@ -124,6 +130,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         name="Bake Samples",
         description="The number of samples to use for baking",
         min=1, soft_max=1024
+    )
+
+    show_bake_preview: BoolProperty(
+        name="Show Preview",
+        description="Shows a preview for this node",
+        default=True
     )
 
     sync: BoolProperty(
@@ -270,11 +282,34 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         row.alignment = 'RIGHT'
         row.prop(self, "sync")
 
+        self._draw_preview(layout)
+
     def draw_buttons_ext(self, context, layout):
         """Draw node buttons in sidebar"""
+        layout.context_pointer_set("baker_node", self)
+
         layout.prop(self, "samples")
 
         self.draw_buttons(context, layout)
+
+    def _draw_preview(self, layout) -> None:
+        if self.target_type != 'IMAGE_TEX_PLANE':
+            return
+
+        layout.prop(self, "show_bake_preview")
+        if not self.show_bake_preview:
+            return
+
+        layout.operator("node.bkn_refresh_preview")
+        preview = self.preview
+        if preview is not None:
+            layout.template_icon(preview.icon_id, scale=8)
+
+    def preview_ensure(self) -> bpy.types.ImagePreview:
+        preview = _preview_collection.get(self.identifier)
+        if preview is None:
+            preview = _preview_collection.new(self.identifier)
+        return preview
 
     def _target_type_update(self) -> None:
         internal_tree.relink_node_tree(self)
@@ -315,9 +350,18 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         self._bake_synced_nodes()
 
+    def schedule_preview_bake(self) -> None:
+        """Schedule this node for baking. Like schedule_bake this will
+        either bake immediately or queue a bake job. Does not raise
+        ScheduleBakeErrors.
+        """
+
+        bake_queue.add_bake_job(self, is_preview=True)
+
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
-                     background: bool = True) -> None:
+                     background: bool = True,
+                     is_preview: bool = False) -> None:
         """Bake this baker node. This bypasses the BakeQueue and
         attempts the bake immediately. If background is True then the
         bake will run in the background (if supported).
@@ -327,13 +371,25 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             background = False
 
         try:
-            baking.perform_baker_node_bake(self, obj, immediate=not background)
+            baking.perform_baker_node_bake(self, obj,
+                                           immediate=not background,
+                                           is_preview=is_preview)
         except Exception as e:
             self.on_bake_cancel()
             raise e
 
         if not background:
             self.on_bake_complete(obj)
+
+    def perform_preview_bake(self,
+                             obj: Optional[bpy.types.Object] = None,
+                             background: bool = True):
+
+        baking.perform_baker_node_bake(self, obj,
+                                       immediate=not background,
+                                       is_preview=True)
+        if not background:
+            self.on_bake_complete(obj, is_preview=True)
 
     def _on_bake_end(self) -> None:
         """Called when the bake is either completed or cancelled."""
@@ -343,8 +399,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             # so need to update cycles after the bake.
             bpy.context.scene.update_render_engine()
 
-    def on_bake_complete(self, obj: bpy.types.Object = None) -> None:
+    def on_bake_complete(self, obj: bpy.types.Object = None,
+                         is_preview: bool = False) -> None:
         """Called when the bake has been completed."""
+        if is_preview:
+            baking.postprocess_baker_node(self, obj, is_preview=True)
+            return
+
         if not self.bake_in_progress:
             return
 
@@ -572,6 +633,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.target_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
             return 'VERTEX_COLORS'
         return 'IMAGE_TEXTURES'
+
+    @property
+    def preview(self) -> Optional[bpy.types.ImagePreview]:
+        return _preview_collection.get(self.identifier)
 
     @property
     def target_image(self) -> Optional[bpy.types.Image]:

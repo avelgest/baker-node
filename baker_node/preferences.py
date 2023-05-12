@@ -77,6 +77,13 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         min=0, soft_max=1024
     )
 
+    preview_size: IntProperty(
+        name="Max Preview Size",
+        description="The maximum width or height of a preview image",
+        default=96,
+        min=1, soft_max=512
+    )
+
     use_numpy: BoolProperty(
         name="Use NumPy",
         description="Allows the add-on to use NumPy for certain operations",
@@ -91,6 +98,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow.separator_spacer()
         flow.prop(self, "cycles_device")
         flow.prop(self, "use_numpy")
+        flow.prop(self, "preview_size")
         layout.separator()
 
         col = layout.column(align=True)

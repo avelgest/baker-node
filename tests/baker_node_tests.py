@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import contextlib
+import itertools as it
 import typing
 import unittest
 import warnings
@@ -42,6 +43,13 @@ class TestBakerNode(unittest.TestCase):
 
         cls.node_tree = cls.ma.node_tree
 
+        # Store current values for some preferences
+        # (will restore in tearDownClass)
+        prefs = preferences.get_prefs()
+        cls.old_prefs = {}
+        cls.old_prefs["background_baking"] = prefs.background_baking
+        cls.old_prefs["preview_size"] = prefs.preview_size
+
         # Image to bake to
         cls.img_target = bpy.data.images.new("tst_img", 4, 4,
                                              is_data=True, float_buffer=True)
@@ -59,10 +67,18 @@ class TestBakerNode(unittest.TestCase):
 
         get_bake_queue().clear()
 
+        # Restore preferences changed by the class
+        prefs = preferences.get_prefs()
+        for k, v in cls.old_prefs.items():
+            setattr(prefs, k, v)
+
     def setUp(self):
         prefs = preferences.get_prefs()
+
         # Use synchronous baking for tests by default
         prefs.background_baking = False
+
+        prefs.preview_size = 4
 
     def tearDown(self):
         self.node_tree.nodes.clear()
@@ -459,3 +475,31 @@ class TestBakerNode(unittest.TestCase):
         baker_node_2.auto_create_target()
         self.assertTrue(baker_node_2.bake_target)
         self.assertNotEqual(baker_node_2.bake_target, baker_node.bake_target)
+
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_5_4_preview_bake(self):
+        prefs = preferences.get_prefs()
+
+        baker_node = self._new_baker_node("preview_bake_test")
+        baker_node.target_type = 'IMAGE_TEX_PLANE'
+
+        self.assertIsNone(baker_node.preview)
+
+        preview = baker_node.preview_ensure()
+        self.assertIsNotNone(preview)
+        self.assertIsNotNone(baker_node.preview)
+        self.assertEqual(len(preview.image_pixels_float), 0)
+
+        value_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        value_node.outputs[0].default_value = (0.2, 0.5, 0.8, 1.0)
+        self.node_tree.links.new(baker_node.inputs[0], value_node.outputs[0])
+
+        baker_node.schedule_preview_bake()
+
+        preview = baker_node.preview
+        expected_size = 4 * prefs.preview_size ** 2
+        self.assertEqual(len(preview.image_pixels_float), expected_size)
+
+        for x, y in zip(preview.image_pixels_float,
+                        it.cycle([0.2, 0.5, 0.8, 1.0])):
+            self.assertAlmostEqual(x, y, delta=0.02)

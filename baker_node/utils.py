@@ -171,6 +171,17 @@ def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> bpy.types.MeshPaintMaskLayer:
     return mesh.vertex_paint_masks[0]
 
 
+def ensure_name_deleted(coll: bpy.types.bpy_prop_collection,
+                        name: str) -> None:
+    """Deletes any item named name in bpy_prop_collection coll.
+    Does nothing if no item with this name exists.
+    """
+    existing = coll.get(name)
+    if existing is not None:
+        existing.name = f"{existing.name}_old"
+        coll.remove(existing)
+
+
 def copy_color_attr_to_mask(color_attr: bpy.types.Attribute,
                             op: Optional = None) -> None:
     """Copies the Red channel of color_attr to the vertex paint mask

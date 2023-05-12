@@ -70,6 +70,13 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         description="The identifier property of the baker node",
         default=""
     )
+
+    is_preview: bpy.props.BoolProperty(
+        name="is preview",
+        description="Whether this job should bake a preview image instead "
+                    "of a normal bake",
+        default=False
+    )
     bake_object: bpy.props.PointerProperty(
         type=bpy.types.Object,
         name="bake object",
@@ -91,17 +98,22 @@ class BakeQueueJob(bpy.types.PropertyGroup):
         default=False
     )
 
-    def init_from_baker_node(self, baker_node, background=False) -> None:
+    def init_from_baker_node(self, baker_node,
+                             background: bool = False,
+                             is_preview: bool = False) -> None:
         """Initialize this job from a BakerNode. If background is True
         then the bake should run in the background when performed.
+        If is_preview is True then this job will bake a preview instead
+        of a normal bake.
         """
         self.node_name = baker_node.name
         self.node_id = baker_node.identifier
         self.bake_object = baker_node.bake_object
         self.background = background
+        self.is_preview = is_preview
 
         # Enables using 'in' keyword to search a PropertyCollection
-        # using a baker's identifier
+        # using a baker's identifier property
         self["name"] = baker_node.identifier
 
         self.node_tree = baker_node.id_data
@@ -143,7 +155,8 @@ class BakeQueueJob(bpy.types.PropertyGroup):
 
         baker_node = self.get_baker_node()
         if baker_node is not None:
-            baker_node.on_bake_complete(self.bake_object)
+            baker_node.on_bake_complete(self.bake_object,
+                                        is_preview=self.is_preview)
 
     def run(self) -> None:
         """Runs this bake job. Throws a BakeJobError if the job has
@@ -160,7 +173,8 @@ class BakeQueueJob(bpy.types.PropertyGroup):
             raise BakeJobError("BakerNode not found.")
 
         baker_node.perform_bake(obj=self.bake_object,
-                                background=self.background)
+                                background=self.background,
+                                is_preview=self.is_preview)
 
         self.in_progress = self.background
 
@@ -288,7 +302,8 @@ class BakeQueue(bpy.types.PropertyGroup):
         if not job.in_progress:
             self.job_complete(job)
 
-    def add_job_from_baker_node(self, baker_node, immediate=False) -> None:
+    def add_job_from_baker_node(self, baker_node,
+                                immediate=False, is_preview=False) -> None:
         """Adds a BakeQueueJob to the queue from a BakerNode. If
         immediate is True or background baking is not suppoted then the
         job will be run immediately.
@@ -296,12 +311,15 @@ class BakeQueue(bpy.types.PropertyGroup):
         in_background = self.bake_in_background and not immediate
 
         # Do nothing if baker_node already has a queued job
-        if self.has_baker_node_job(baker_node):
+        if is_preview:
+            if self.has_baker_node_preview_job(baker_node):
+                return
+        elif self.has_baker_node_job(baker_node):
             return
 
         job = self.jobs.add()
         try:
-            job.init_from_baker_node(baker_node, in_background)
+            job.init_from_baker_node(baker_node, in_background, is_preview)
         except Exception as e:
             self.jobs.remove(len(self.jobs)-1)
             raise e
@@ -343,9 +361,26 @@ class BakeQueue(bpy.types.PropertyGroup):
 
     def has_baker_node_job(self, baker_node) -> bool:
         """Returns whether baker_node has any sceduled or active jobs
-        in this bake queue.
+        in this BakeQueue (does not include preview jobs).
         """
-        return baker_node.identifier in self.jobs
+        identifier = baker_node.identifier
+        job = self.jobs.get(identifier)
+        if job is None:
+            return False
+        if job.is_preview:
+            return any(x for x in self.jobs
+                       if x.identifier == identifier and not x.is_preview)
+        return True
+
+    def has_baker_node_preview_job(self, baker_node) -> bool:
+        """Returns True if there are any scheduled or active preview
+        bake jobs in this BakeQueue.
+        """
+        identifier = baker_node.identifier
+        if identifier not in self.jobs:
+            return False
+        return any(x for x in self.jobs
+                   if x.identifier == identifier and x.is_preview)
 
     def job_cancel(self, job: BakeQueueJob) -> None:
         job.on_cancel()
@@ -391,10 +426,10 @@ class BakeQueue(bpy.types.PropertyGroup):
         return self.active_job is not None
 
 
-def add_bake_job(baker_node) -> None:
+def add_bake_job(baker_node, is_preview: bool = False) -> None:
     """Adds a job to the bake queue from a BakerNode instance."""
     bake_queue = utils.get_bake_queue()
-    bake_queue.add_job_from_baker_node(baker_node)
+    bake_queue.add_job_from_baker_node(baker_node, is_preview=is_preview)
 
 
 def cancel_bake_jobs(baker_node) -> None:
@@ -405,10 +440,15 @@ def cancel_bake_jobs(baker_node) -> None:
 
 def has_scheduled_job(baker_node) -> bool:
     """Returns True if baker_node has any jobs scheduled in the
-    bake queue.
+    bake queue. Does not include preview bake jobs.
     """
     bake_queue = utils.get_bake_queue()
     return bake_queue.has_baker_node_job(baker_node)
+
+
+def has_scheduled_preview_job(baker_node) -> bool:
+    bake_queue = utils.get_bake_queue()
+    return bake_queue.has_baker_node_preview_job(baker_node)
 
 
 def is_bake_job_active(baker_node) -> bool:
@@ -420,7 +460,8 @@ def is_bake_job_active(baker_node) -> bool:
             and active_job.node_id == baker_node.identifier)
 
 
-def _schedule_update(delay=0.3) -> None:
+def _schedule_update(delay: float = 0.3) -> None:
+    """Call try_run_next on the bake queue after delay seconds."""
     bpy.app.timers.register(lambda: utils.get_bake_queue().try_run_next(),
                             first_interval=delay)
 
