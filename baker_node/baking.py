@@ -155,7 +155,9 @@ class _BakerNodeBaker:
 
     def _init_plane_mesh(self, name, x_verts=2, y_verts=2,
                          calc_uvs=False) -> bpy.types.Mesh:
-        """Initializes a plane using the """
+        """Initializes a plane using the target_plane_align property of
+        the baker node.
+        """
         bm = bmesh.new(use_operators=True)
 
         align = self.baker_node.target_plane_align
@@ -170,7 +172,8 @@ class _BakerNodeBaker:
             transform @= Matrix.Rotation(math.pi/2, 4, 'X')
 
         if calc_uvs:
-            bm.loops.layers.uv.verify()
+            bm.loops.layers.uv.new(self._uv_layer)
+            #bm.loops.layers.uv.verify()
 
         bmesh.ops.create_grid(bm, size=1, matrix=transform,
                               x_segments=x_verts - 1, y_segments=y_verts - 1,
@@ -191,28 +194,8 @@ class _BakerNodeBaker:
 
     def _init_plane(self) -> None:
         """Initializes the plane used for the Image (Plane) target type."""
-        align = self.baker_node.target_plane_align
-
-        mesh = bpy.data.meshes.new("Baker Node Plane")
-        mesh.from_pydata(
-            # Add a vertex at (0, 0, +/-1) to ensure the plane's
-            # coordinates lie on the axes e.g (x, y, 0) for 'XY'
-            vertices=[(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0),
-                      (0, 0, -1 if align == 'XZ' else 1)],
-            edges=[(0, 1), (1, 2), (2, 3), (3, 0)],
-            faces=[(0, 1, 2, 3)]
-        )
-        if mesh.validate(verbose=True):
-            warnings.warn(f"{mesh.name} initialized with invalid geometry")
-
-        mesh.uv_layers.new(name=self._uv_layer, do_init=True)
-
-        # Align the plane to the target axes. The plane's normal should
-        # face either Front (-Y), Right (X) or Top (Z).
-        if align != 'XY':
-            mesh.transform(Matrix.Rotation(math.pi/2, 4, 'X'))
-            if align == 'YZ':
-                mesh.transform(Matrix.Rotation(math.pi/2, 4, 'Z'))
+        # Create the plane mesh
+        mesh = self._init_plane_mesh("Baker Node Plane", 2, 2, calc_uvs=True)
 
         # Add the plane object
         plane = bpy.data.objects.new(".Baker Node Plane", mesh)
