@@ -135,7 +135,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     show_bake_preview: BoolProperty(
         name="Show Preview",
         description="Shows a preview for this node",
-        default=True
+        default=False,
+        update=lambda self, _: self._show_bake_preview_update()
     )
 
     sync: BoolProperty(
@@ -296,8 +297,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.target_type != 'IMAGE_TEX_PLANE':
             return
 
-        layout.prop(self, "show_bake_preview")
-        if not self.show_bake_preview:
+        show_preview = self.show_bake_preview
+        row = layout.row()
+        row.alignment = 'LEFT'
+        row.prop(self, "show_bake_preview",
+                 text="Preview", emboss=False,
+                 icon='TRIA_DOWN' if show_preview else 'TRIA_RIGHT')
+
+        if not show_preview:
             return
 
         layout.operator("node.bkn_refresh_preview")
@@ -561,6 +568,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return not (linked_soc.name.lower() == "fac"
                     or linked_soc.type == 'RGBA'
                     or getattr(linked_soc.node, "use_clamp", False))
+
+    def _show_bake_preview_update(self) -> None:
+        if self.show_bake_preview:
+            preview = self.preview
+            if preview is None or not any(preview.image_size):
+                self.schedule_preview_bake()
 
     @property
     def bake_object(self) -> Optional[bpy.types.Object]:
