@@ -142,7 +142,7 @@ class _BakerNodeBaker:
         mesh = self._init_plane_mesh(_PREVIEW_MESH_NAME, max_res, max_res,
                                      calc_uvs=True)
 
-        mesh.color_attributes.new('Color', 'BYTE_COLOR', 'POINT')
+        mesh.color_attributes.new('Color', 'FLOAT_COLOR', 'POINT')
 
         plane = bpy.data.objects.new(_PREVIEW_OBJ_NAME, mesh)
         bpy.context.scene.collection.objects.link(plane)
@@ -462,6 +462,34 @@ class _BakerNodePostprocess:
             utils.copy_color_attr_to_mask(color_attr, combine_op)
             mesh.color_attributes.remove(color_attr)
 
+    @classmethod
+    def _get_color_attr_as_display(cls, color_attr) -> bpy.types.Sequence:
+        """Returns the values of a color attribute as an array taking
+        into account the scene.display_settings.display_device.
+        """
+        display_device = bpy.context.scene.display_settings.display_device
+
+        color_data = array("f", [0]) * (len(color_attr.data) * 4)
+
+        if (display_device == 'sRGB'
+                and hasattr(color_attr.data[0], "color_srgb")):
+            color_attr.data.foreach_get("color_srgb", color_data)
+            return color_data
+
+        color_attr.data.foreach_get("color", color_data)
+        if display_device == 'sRGB':
+            # For Blender versions before the color_srgb property
+            # perform a very approximate conversion to sRGB.
+            np = utils.get_numpy()
+            exponent = 1/2.2
+
+            if np is not None:
+                return np.power(color_data, exponent, dtype=np.float32)
+
+            # Non-numpy version (slow)
+            return array("f", [x**exponent for x in color_data])
+        return color_data
+
     def _postprocess_preview(self) -> None:
         # Copy the vertex color data from the preview plane to the
         # preview image of the baker node
@@ -481,11 +509,8 @@ class _BakerNodePostprocess:
         if len(color_attr.data) != max_size * max_size + 1:
             raise RuntimeError("Color attribute has wrong size")
 
-        # N.B. Using foreach_get("color", preview.image_pixels_float)
-        # is possible, but is much slower than using an array
-        color_data = array("f", [0]) * (len(color_attr.data) * 4)
+        color_data = self._get_color_attr_as_display(color_attr)
 
-        color_attr.data.foreach_get("color", color_data)
         preview.image_pixels_float.foreach_set(color_data[:-4])
 
         bpy.data.meshes.remove(mesh)

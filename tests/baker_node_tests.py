@@ -6,6 +6,8 @@ import typing
 import unittest
 import warnings
 
+from typing import Any
+
 import bpy
 
 from ..baker_node import preferences
@@ -17,6 +19,14 @@ supports_color_attrs = preferences.supports_color_attributes
 supports_temp_override = hasattr(bpy.types.Context, "temp_override")
 
 
+@contextlib.contextmanager
+def _temp_set(obj: Any, attr: str, value: Any):
+    old_value = getattr(obj, attr)
+    setattr(obj, attr, value)
+    yield
+    setattr(obj, attr, old_value)
+
+
 class TestBakerNode(unittest.TestCase):
     obj: bpy.types.Object
     ma: bpy.types.Material
@@ -24,6 +34,15 @@ class TestBakerNode(unittest.TestCase):
     img_target: bpy.types.Image
     attr_target_1: bpy.types.Attribute
     attr_target_2: bpy.types.Attribute
+
+    # Use these values for certain add-on preferences
+    _override_prefs = {
+        "background_baking": False,
+        "preview_size": 4,
+        "use_numpy": False
+    }
+    # Dict to store the original values for keys in _override_prefs
+    _old_prefs = {}
 
     @classmethod
     def setUpClass(cls):
@@ -46,9 +65,7 @@ class TestBakerNode(unittest.TestCase):
         # Store current values for some preferences
         # (will restore in tearDownClass)
         prefs = preferences.get_prefs()
-        cls.old_prefs = {}
-        cls.old_prefs["background_baking"] = prefs.background_baking
-        cls.old_prefs["preview_size"] = prefs.preview_size
+        cls._old_prefs = {k: getattr(prefs, k) for k in cls._override_prefs}
 
         # Image to bake to
         cls.img_target = bpy.data.images.new("tst_img", 4, 4,
@@ -69,16 +86,13 @@ class TestBakerNode(unittest.TestCase):
 
         # Restore preferences changed by the class
         prefs = preferences.get_prefs()
-        for k, v in cls.old_prefs.items():
+        for k, v in cls._old_prefs.items():
             setattr(prefs, k, v)
 
     def setUp(self):
         prefs = preferences.get_prefs()
-
-        # Use synchronous baking for tests by default
-        prefs.background_baking = False
-
-        prefs.preview_size = 4
+        for k, v in self._override_prefs.items():
+            setattr(prefs, k, v)
 
     def tearDown(self):
         self.node_tree.nodes.clear()
@@ -335,6 +349,7 @@ class TestBakerNode(unittest.TestCase):
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_3_4_sculpt_mask_bake(self):
+        # TODO Also test with use_numpy = True in preferences
         baker_node = self._new_baker_node("sculpt_mask_bake_test")
         baker_node.target_type = 'VERTEX_MASK'
         baker_node.target_combine_op = 'REPLACE'
@@ -494,7 +509,10 @@ class TestBakerNode(unittest.TestCase):
         value_node.outputs[0].default_value = (0.2, 0.5, 0.8, 1.0)
         self.node_tree.links.new(baker_node.inputs[0], value_node.outputs[0])
 
-        baker_node.schedule_preview_bake()
+        # TODO Test 'sRGB' as display_device and when use_numpy == True
+        with _temp_set(bpy.context.scene.display_settings,
+                       "display_device", 'None'):
+            baker_node.schedule_preview_bake()
 
         preview = baker_node.preview
         expected_size = 4 * prefs.preview_size ** 2
