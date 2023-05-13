@@ -139,7 +139,8 @@ class _BakerNodeBaker:
         # TODO Support non-square previews based on AR of target image
         max_res = get_prefs().preview_size
 
-        mesh = self._init_plane_mesh(_PREVIEW_MESH_NAME, max_res, max_res)
+        mesh = self._init_plane_mesh(_PREVIEW_MESH_NAME, max_res, max_res,
+                                     calc_uvs=True)
 
         mesh.color_attributes.new('Color', 'BYTE_COLOR', 'POINT')
 
@@ -154,7 +155,7 @@ class _BakerNodeBaker:
         # N.B. Wait until postprocess before deleting plane.
 
     def _init_plane_mesh(self, name, x_verts=2, y_verts=2,
-                         calc_uvs=False) -> bpy.types.Mesh:
+                         calc_uvs=True) -> bpy.types.Mesh:
         """Initializes a plane using the target_plane_align property of
         the baker node.
         """
@@ -173,7 +174,6 @@ class _BakerNodeBaker:
 
         if calc_uvs:
             bm.loops.layers.uv.new(self._uv_layer)
-            #bm.loops.layers.uv.verify()
 
         bmesh.ops.create_grid(bm, size=1, matrix=transform,
                               x_segments=x_verts - 1, y_segments=y_verts - 1,
