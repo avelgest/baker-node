@@ -24,7 +24,7 @@ def get_bake_queue():
     return bpy.context.window_manager.bkn_bake_queue
 
 
-def _get_numpy(should_import: bool = True) -> Optional:
+def get_numpy(should_import: bool = True) -> Optional:
     """Returns the numpy module if available and allowed by the add-on
     preferences otherwise returns None. If should_import is False then
     the numpy will only be returned if it has already been imported.
@@ -205,13 +205,15 @@ def copy_color_attr_to_mask(color_attr: bpy.types.Attribute,
 
     total_len = len(from_data) * len(from_data[0].color)
 
-    np = _get_numpy(total_len > 100000)
+    np = get_numpy(total_len > 100000)
 
     arr = np.full(total_len, 0, "f") if np else array("f", [0]) * total_len
     from_data.foreach_get("color", arr)
 
     # Only use the red channel
     arr = arr[::4]
+    if np:
+        arr = np.ascontiguousarray(arr, dtype="f")
 
     mask = mesh.vertex_paint_masks[0]
 
