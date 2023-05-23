@@ -294,7 +294,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.draw_buttons(context, layout)
 
     def _draw_preview(self, layout) -> None:
-        if self.target_type != 'IMAGE_TEX_PLANE':
+        if not self._can_display_preview:
             return
 
         show_preview = self.show_bake_preview
@@ -360,10 +360,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def schedule_preview_bake(self) -> None:
         """Schedule this node for baking. Like schedule_bake this will
         either bake immediately or queue a bake job. Does not raise
-        ScheduleBakeErrors.
+        ScheduleBakeErrors. Does nothing if this node does not support
+        previews or already has a preview bake scheduled.
         """
-
-        bake_queue.add_bake_job(self, is_preview=True)
+        if (self._can_display_preview
+                and not bake_queue.has_scheduled_preview_job(self)):
+            bake_queue.add_bake_job(self, is_preview=True)
 
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
@@ -637,6 +639,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             self.target_image = value
         else:
             self.target_attribute = value if value is not None else ""
+
+    @property
+    def _can_display_preview(self) -> bool:
+        """Returns True if this node can display a preview image."""
+        return self.target_type == 'IMAGE_TEX_PLANE'
 
     @property
     def cycles_target_enum(self) -> str:

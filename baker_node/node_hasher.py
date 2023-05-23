@@ -11,7 +11,8 @@ import bpy
 from bpy.types import bpy_struct, Node, NodeSocket
 
 # Ignore these props for nodes
-_NODE_IGNORE_PROPS = {x.identifier for x in Node.bl_rna.properties}
+_NODE_IGNORE_PROPS = {x.identifier for x in Node.bl_rna.properties
+                      if x.identifier != 'mute'}
 # Properties of bpy_struct to ignore
 _STRUCT_IGNORE_PROPS = {"bl_rna", "id_data", "rna_type"}
 
