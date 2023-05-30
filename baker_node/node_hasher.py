@@ -2,7 +2,6 @@
 
 import hashlib
 import typing
-import warnings
 
 from typing import Any, Optional
 
@@ -54,8 +53,7 @@ class NodeHasher:
         self.node_tree = node_tree
 
         self._max_depth = 10
-        self._link_cache = {x.to_socket: x
-                            for x in node_tree.links}
+        self._link_cache_dict = None
 
         self._hash_cache = {}
 
@@ -151,15 +149,16 @@ class NodeHasher:
 
         if socket.is_linked:
             link = self._link_cache.get(socket)
-            if link is None:
-                warnings.warn("Link cache miss hashing socket.")
-                link = socket.links[0]
+            if link is not None:
+                # link may be None if the user is in the process of
+                # disconnecting the socket.
 
-            # Apply the hash of the linked node
-            hash_obj.update(self.hash_node(link.from_node))
+                # Update with the hash of the linked node
+                hash_obj.update(self.hash_node(link.from_node))
+                return
 
         # If socket is unlinked hash the default_value instead
-        elif hasattr(socket, "default_value"):
+        if hasattr(socket, "default_value"):
             self._hash_value_with(socket.default_value, hash_obj)
 
     def hash_socket(self, socket: NodeSocket) -> bytes:
@@ -172,3 +171,10 @@ class NodeHasher:
         self._hash_socket_with(socket, hash_obj)
 
         return hash_obj.digest()
+
+    @property
+    def _link_cache(self) -> dict[NodeSocket, bpy.types.NodeLink]:
+        if self._link_cache_dict is None:
+            self._link_cache_dict = {link.to_socket: link
+                                     for link in self.node_tree.links}
+        return self._link_cache_dict
