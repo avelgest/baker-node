@@ -2,7 +2,7 @@
 
 import bpy
 
-from bpy.props import BoolProperty, EnumProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty
 
 from .. import __package__ as package_name
 
@@ -84,6 +84,16 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         min=1, soft_max=512
     )
 
+    preview_update_interval: FloatProperty(
+        name="Preview Update Interval",
+        description="How often to check if a Baker node's preview should be "
+                    "updated (in seconds). Set to zero to disable automatic "
+                    "preview updates",
+        default=1.0,
+        precision=1,
+        min=0.0, soft_max=60.0
+    )
+
     use_numpy: BoolProperty(
         name="Use NumPy",
         description="Allows the add-on to use NumPy for certain operations",
@@ -99,6 +109,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow.prop(self, "cycles_device")
         flow.prop(self, "use_numpy")
         flow.prop(self, "preview_size")
+        flow.prop(self, "preview_update_interval")
         layout.separator()
 
         col = layout.column(align=True)
@@ -124,6 +135,11 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         # Baking in background only available for Blender 3.3+
         if self.background_baking and not self.supports_background_baking:
             self.background_baking = False
+
+    @property
+    def automatic_preview_updates(self) -> bool:
+        """True if node previews should be updated automatically."""
+        return self.preview_update_interval >= 0.05
 
     @property
     def supports_background_baking(self) -> bool:
