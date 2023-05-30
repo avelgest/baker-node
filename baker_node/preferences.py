@@ -50,7 +50,8 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
                     "If there are already Baker nodes added then the size of "
                     "their images will be used instead",
         default=1024,
-        min=1, soft_max=2**16
+        min=1, soft_max=2**16,
+        subtype='PIXEL'
     )
 
     background_baking: BoolProperty(
@@ -81,7 +82,8 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         name="Max Preview Size",
         description="The maximum width or height of a preview image",
         default=96,
-        min=1, soft_max=512
+        min=1, soft_max=512,
+        subtype='PIXEL'
     )
 
     preview_update_interval: FloatProperty(
@@ -90,8 +92,9 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
                     "updated (in seconds). Set to zero to disable automatic "
                     "preview updates",
         default=1.0,
-        precision=1,
-        min=0.0, soft_max=60.0
+        min=0.0, soft_max=60.0, step=5,
+        unit='TIME_ABSOLUTE',
+        update=lambda self, _: self._preview_update_interval_update()
     )
 
     use_numpy: BoolProperty(
@@ -104,10 +107,11 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         layout = self.layout
         flow = layout.column_flow(columns=2)
         flow.prop(self, "background_baking")
-        flow.prop(self, "default_samples")
-        flow.separator_spacer()
-        flow.prop(self, "cycles_device")
         flow.prop(self, "use_numpy")
+        flow.prop(self, "cycles_device")
+        flow.prop(self, "default_samples")
+
+        flow = layout.column_flow(columns=2)
         flow.prop(self, "preview_size")
         flow.prop(self, "preview_update_interval")
         layout.separator()
@@ -135,6 +139,11 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         # Baking in background only available for Blender 3.3+
         if self.background_baking and not self.supports_background_baking:
             self.background_baking = False
+
+    def _preview_update_interval_update(self):
+        value = self.preview_update_interval
+        if value < 0.05 and value != 0.0:
+            self.preview_update_interval = 0.0
 
     @property
     def automatic_preview_updates(self) -> bool:
