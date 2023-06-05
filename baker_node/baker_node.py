@@ -116,6 +116,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         default='REPLACE'
     )
 
+    # For target_type == VERTEX_MASK
+    grayscale_method: EnumProperty(
+        name="Grayscale Method",
+        description="How to convert the color input into a grayscale value",
+        items=(('AVERAGE', "Average", "Use the average of the RGB values"),
+               ('LUMINANCE', "Luminance", "Same as RGB to BW node"),
+               ('RED', "Red", "Use only the color's red channel")),
+        default='AVERAGE',
+        update=lambda self, _: self._relink_node_tree()
+    )
+
     # N.B. A python property is used for target_image to prevent
     # increasing the images user count.
 
@@ -266,7 +277,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 row.prop(self, "target_attribute", text="", icon="DOT")
 
         elif self.target_type == 'VERTEX_MASK':
-            layout.prop(self, "target_combine_op", text="")
+            col = layout.column(align=True)
+            col.prop(self, "target_combine_op", text="")
+            col.prop(self, "grayscale_method", text="")
 
     def draw_buttons(self, context, layout):
         layout.context_pointer_set("baker_node", self)
@@ -358,6 +371,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def _refresh_uv_map(self) -> None:
         internal_tree.refresh_uv_map(self)
+
+    def _relink_node_tree(self) -> None:
+        internal_tree.relink_node_tree(self)
 
     def schedule_bake(self) -> None:
         """Schedule this node for baking. If background baking is

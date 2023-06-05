@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import warnings
+
 from typing import Optional
 
 import bpy
@@ -17,6 +19,10 @@ class NodeNames:
     baked_img = "Baker Node Baked Image"
     baked_attr = "Baker Node Baked Color Attribute"
 
+    grayscale_separate_rgb = "Baker Node Separate Input RGB"
+    grayscale_luminance = "Baker Node RGB to Luminance"
+    grayscale_average = "Baker Node RGB to Average"
+
 
 class _TreeBuilder:
     """Helper class used when constructing BakerNode's internal
@@ -29,8 +35,8 @@ class _TreeBuilder:
             raise TypeError("Expected a node with a node_tree attribute.")
 
     def _add_baked_nodes(self, target_image) -> None:
-        nodes = self.baker_node.node_tree.nodes
-        links = self.baker_node.node_tree.links
+        nodes = self.nodes
+        links = self.links
 
         baked_img_node = nodes.new("ShaderNodeTexImage")
         baked_img_node.name = NodeNames.baked_img
@@ -49,6 +55,40 @@ class _TreeBuilder:
         baked_attr_node.name = NodeNames.baked_attr
         baked_attr_node.layer_name = self.baker_node.target_attribute
         baked_attr_node.location.y = 180
+
+    def _add_grayscale_nodes(self) -> None:
+        """Add nodes for converting the group's color input to a scalar
+        value.
+        """
+        nodes = self.nodes
+        links = self.links
+
+        separate_rgb = nodes.new("ShaderNodeSeparateRGB")
+        separate_rgb.name = NodeNames.grayscale_separate_rgb
+        separate_rgb.location = (50, -180)
+        separate_rgb.hide = True
+
+        luminance = nodes.new("ShaderNodeRGBToBW")
+        luminance.name = NodeNames.grayscale_luminance
+        luminance.label = "Luminance"
+        luminance.location = separate_rgb.location
+        luminance.location.y -= 60
+        luminance.hide = True
+
+        average = nodes.new("ShaderNodeVectorMath")
+        average.name = NodeNames.grayscale_average
+        average.label = "Average"
+        average.location = luminance.location
+        average.location.y -= 60
+        average.hide = True
+        average.operation = 'DOT_PRODUCT'
+        average.inputs[1].default_value = (1/3, 1/3, 1/3)
+        average.inputs[1].hide = True
+
+        color_socket = nodes[NodeNames.group_input].outputs[0]
+        links.new(separate_rgb.inputs[0], color_socket)
+        links.new(luminance.inputs[0], color_socket)
+        links.new(average.inputs[0], color_socket)
 
     def create_node_tree(self) -> bpy.types.ShaderNodeTree:
         """Creates and returns a node tree for this classes baker_node.
@@ -87,6 +127,7 @@ class _TreeBuilder:
         group_output.location.x += 500
 
         self._add_baked_nodes(target_image)
+        self._add_grayscale_nodes()
 
         emission_shader = nodes.new("ShaderNodeEmission")
         emission_shader.name = NodeNames.emission_shader
@@ -122,12 +163,41 @@ class _TreeBuilder:
         elif baker_node.target_type == 'COLOR_ATTRIBUTE':
             baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]
         elif baker_node.target_type == 'VERTEX_MASK':
+            self._link_grayscale_node()
             # No outputs for 'VERTEX_MASK'
             return
         else:
             raise ValueError(f"Unknown target type '{baker_node.target_type}'")
 
         links.new(nodes[NodeNames.group_output].inputs[0], baked_val_soc)
+
+    def _link_grayscale_node(self) -> None:
+        """Link the grayscale node that should be used by the baker node
+        to the emission shader node.
+        """
+        nodes = self.nodes
+        grayscale_method = self.baker_node.grayscale_method
+
+        if grayscale_method == 'RED':
+            gray_socket = nodes[NodeNames.grayscale_separate_rgb].outputs[0]
+        elif grayscale_method == 'LUMINANCE':
+            gray_socket = nodes[NodeNames.grayscale_luminance].outputs[0]
+        elif grayscale_method == 'AVERAGE':
+            gray_socket = nodes[NodeNames.grayscale_average].outputs["Value"]
+        else:
+            warnings.warn(f"Unknown grayscale_method value {grayscale_method}")
+            return
+
+        emission_shader = nodes[NodeNames.emission_shader]
+        self.links.new(emission_shader.inputs[0], gray_socket)
+
+    @property
+    def nodes(self) -> bpy.types.Nodes:
+        return self.baker_node.node_tree.nodes
+
+    @property
+    def links(self) -> bpy.types.NodeLinks:
+        return self.baker_node.node_tree.links
 
 
 def create_node_tree_for(baker_node) -> ShaderNodeTree:
@@ -140,10 +210,11 @@ def create_node_tree_for(baker_node) -> ShaderNodeTree:
 
 
 def relink_node_tree(baker_node) -> None:
-    """Recreate the links of nodes in a BakerNode's internal tree."""
-    if baker_node.node_tree is None:
-        raise ValueError("baker_node.node_tree should not be None")
-    _TreeBuilder(baker_node).link_nodes()
+    """Recreate some of the links of the nodes in a BakerNode's
+    internal tree.
+    """
+    if baker_node.node_tree is not None:
+        _TreeBuilder(baker_node).link_nodes()
 
 
 def rebuild_node_tree(baker_node) -> None:

@@ -353,6 +353,7 @@ class TestBakerNode(unittest.TestCase):
         baker_node = self._new_baker_node("sculpt_mask_bake_test")
         baker_node.target_type = 'VERTEX_MASK'
         baker_node.target_combine_op = 'REPLACE'
+        baker_node.grayscale_method = 'RED'
 
         mesh = self.obj.data
         num_col_attrs = len(mesh.color_attributes)
@@ -382,9 +383,44 @@ class TestBakerNode(unittest.TestCase):
         baker_node.schedule_bake()
 
         # Should have multiplied mask by value_node's value (0.5)
-        mask = mesh.vertex_paint_masks[0]
-        for x in mask.data:
-            self.assertAlmostEqual(x.value, 0.25, delta=0.001)
+        correct = 0.5 / 2.0
+        for x in mesh.vertex_paint_masks[0].data:
+            self.assertAlmostEqual(x.value, correct, delta=0.001)
+
+    def _test_greyscale_method(self,
+                               baker_node: BakerNode,
+                               method: str,
+                               correct: float,
+                               delta: float = 0.001) -> None:
+        baker_node.grayscale_method = method
+        baker_node.schedule_bake()
+        mesh = self.obj.data
+        for x in mesh.vertex_paint_masks[0].data:
+            self.assertAlmostEqual(x.value, correct, delta=delta)
+
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_4_1_grayscale_method(self):
+        baker_node = self._new_baker_node("test_4_1_grayscale_method")
+        baker_node.target_type = 'VERTEX_MASK'
+        baker_node.target_combine_op = 'REPLACE'
+
+        color_value = (0.1, 0.2, 0.7, 1.0)
+        rgb_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        rgb_node.outputs[0].default_value = color_value
+        self.node_tree.links.new(baker_node.inputs[0], rgb_node.outputs[0])
+
+        # AVERAGE
+        correct = sum(color_value[:3]) / 3.0
+        self._test_greyscale_method(baker_node, 'AVERAGE', correct)
+
+        # RED
+        self._test_greyscale_method(baker_node, 'RED', 0.1)
+
+        # LUMINANCE
+        correct = sum(x*y for x, y in zip([0.2126, 0.7152, 0.0722],
+                                          color_value[:3]))
+        # Use large delta in case lumninace equation changes
+        self._test_greyscale_method(baker_node, 'LUMINANCE', correct, 0.1)
 
     # FIXME Use images if color attributes not supported
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
