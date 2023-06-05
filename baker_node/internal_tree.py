@@ -102,6 +102,7 @@ class _TreeBuilder:
         node_tree.inputs.new(name="Color", type="NodeSocketColor")
 
         node_tree.outputs.new(name="Baked", type="NodeSocketColor")
+        node_tree.outputs.new(name="Preview", type="NodeSocketFloat")
 
         # Hide the default values of all inputs
         for in_socket in node_tree.inputs:
@@ -189,7 +190,9 @@ class _TreeBuilder:
             return
 
         emission_shader = nodes[NodeNames.emission_shader]
+        group_output = nodes[NodeNames.group_output]
         self.links.new(emission_shader.inputs[0], gray_socket)
+        self.links.new(group_output.inputs["Preview"], gray_socket)
 
     @property
     def nodes(self) -> bpy.types.Nodes:

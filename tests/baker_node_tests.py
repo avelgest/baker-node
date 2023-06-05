@@ -205,8 +205,9 @@ class TestBakerNode(unittest.TestCase):
         self.assertEqual(len(inputs), 1)
         self.assertEqual(inputs[0].type, 'RGBA')
 
-        self.assertEqual(len(outputs), 1)
+        self.assertEqual(len(outputs), 2)
         self.assertEqual(outputs[0].type, 'RGBA')
+        self.assertEqual(outputs[1].type, 'VALUE')
 
     @unittest.skipUnless(supports_temp_override, "No context temp_override")
     def test_2_3_duplicate(self):

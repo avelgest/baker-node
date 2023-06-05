@@ -192,6 +192,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.width = 210
 
         self.node_tree = internal_tree.create_node_tree_for(self)
+        self._refresh_sockets_enabled()
 
     def copy(self, node):
         self.identifier = self._create_identifier(node_tree=node.id_data)
@@ -359,12 +360,16 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def _target_type_update(self) -> None:
         internal_tree.relink_node_tree(self)
+        self._refresh_sockets_enabled()
 
-        # Hide output socket for sculpt mask bake target
-        if self.target_type in ('IMAGE_TEX_PLANE', 'VERTEX_MASK'):
-            self.outputs[0].enabled = False
-        else:
-            self.outputs[0].enabled = True
+    def _refresh_sockets_enabled(self) -> None:
+        target_type = self.target_type
+
+        has_color_out = target_type not in ('IMAGE_TEX_PLANE', 'VERTEX_MASK')
+        has_preview_out = (target_type == 'VERTEX_MASK')
+
+        self.outputs[0].enabled = has_color_out
+        self.outputs[1].enabled = has_preview_out
 
     def _refresh_targets(self) -> None:
         internal_tree.refresh_targets(self)
