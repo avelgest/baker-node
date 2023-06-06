@@ -372,6 +372,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         has_color_out = target_type not in ('IMAGE_TEX_PLANE', 'VERTEX_MASK')
         has_preview_out = (target_type == 'VERTEX_MASK')
 
+        internal_tree.check_sockets(self)
         self.outputs[0].enabled = has_color_out
         self.outputs[1].enabled = has_preview_out
 

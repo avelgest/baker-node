@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import typing
 import warnings
 
-from typing import Optional
+from typing import Optional, Union
 
 import bpy
 
@@ -24,10 +25,25 @@ class NodeNames:
     grayscale_average = "Baker Node RGB to Average"
 
 
+# The names of all nodes in a BakerNode's node_tree
+_node_names_set = {v for k, v in NodeNames.__dict__.items()
+                   if not k.startswith('_') and isinstance(v, str)}
+
+
 class _TreeBuilder:
     """Helper class used when constructing BakerNode's internal
     node tree.
     """
+
+    _INPUT_TEMPLATE = (
+        ("Color", "NodeSocketColor"),
+    )
+
+    _OUTPUT_TEMPLATE = (
+        ("Baked", "NodeSocketColor"),
+        ("Preview", "NodeSocketFloat"),
+    )
+
     def __init__(self, baker_node: ShaderNode):
         self.baker_node = baker_node
 
@@ -90,6 +106,44 @@ class _TreeBuilder:
         links.new(luminance.inputs[0], color_socket)
         links.new(average.inputs[0], color_socket)
 
+    def check_nodes(self) -> None:
+        """Checks that all necessary nodes are present in the node
+        tree. If any are missing then the node tree is rebuilt."""
+        nodes = self.nodes
+        node_names = {x.name for x in nodes}
+
+        # If there are missing nodes then rebuild the node tree
+        if _node_names_set.difference(node_names):
+            self.rebuild_node_tree()
+
+    @classmethod
+    def _check_sockets(cls,
+                       sockets: Union[bpy.types.NodeTreeInputs,
+                                      bpy.types.NodeTreeOutputs],
+                       template: typing.Sequence[tuple[str, str]]) -> None:
+        for idx, tup in enumerate(template):
+            name, socket_type = tup
+            existing_idx = sockets.find(name)
+            if existing_idx < 0:
+                sockets.new(name=name, type=socket_type)
+                existing_idx = len(sockets) - 1
+            if existing_idx != idx:
+                sockets.move(existing_idx, idx)
+
+        # Remove sockets that are not found in template
+        for socket in reversed(list(sockets[len(template): len(sockets)])):
+            sockets.remove(socket)
+
+    # TODO Write tests
+    def check_sockets(self) -> None:
+        """Checks that the node_tree has the correct inputs and outputs
+        according to the _INPUT_TEMPLATE and _OUTPUT_TEMPLATE class
+        attributes.
+        """
+        node_tree = self.baker_node.node_tree
+        self._check_sockets(node_tree.inputs, self._INPUT_TEMPLATE)
+        self._check_sockets(node_tree.outputs, self._OUTPUT_TEMPLATE)
+
     def create_node_tree(self) -> bpy.types.ShaderNodeTree:
         """Creates and returns a node tree for this classes baker_node.
         Note that this does not set the baker node's node_tree
@@ -141,12 +195,10 @@ class _TreeBuilder:
     def refresh_targets(self):
         nodes = self.baker_node.node_tree.nodes
 
-        baked_img_node = nodes.get(NodeNames.baked_img)
-        baked_attr_node = nodes.get(NodeNames.baked_attr)
+        self.check_nodes()
 
-        if baked_img_node is None or baked_attr_node is None:
-            self.rebuild_node_tree()
-            return
+        baked_img_node = nodes[NodeNames.baked_img]
+        baked_attr_node = nodes[NodeNames.baked_attr]
 
         baked_img_node.image = self.baker_node.target_image
         baked_attr_node.layer_name = self.baker_node.target_attribute
@@ -155,6 +207,12 @@ class _TreeBuilder:
         baker_node = self.baker_node
         nodes = baker_node.node_tree.nodes
         links = baker_node.node_tree.links
+
+        # Ensure that all expected nodes are present
+        self.check_nodes()
+
+        # Ensure that all expected inputs/outputs are present
+        self.check_sockets()
 
         links.new(nodes[NodeNames.emission_shader].inputs[0],
                   nodes[NodeNames.group_input].outputs[0])
@@ -210,6 +268,15 @@ def create_node_tree_for(baker_node) -> ShaderNodeTree:
     builder.rebuild_node_tree()
 
     return node_tree
+
+
+def check_sockets(baker_node) -> None:
+    """Checks that the inputs and outputs of baker_node's node_tree
+    are correct. This adds any missing sockets, removes any
+    that are unrecognised and ensures that the order is correct.
+    """
+    if baker_node.node_tree is not None:
+        _TreeBuilder(baker_node).check_sockets()
 
 
 def relink_node_tree(baker_node) -> None:
