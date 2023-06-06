@@ -134,13 +134,16 @@ class _TreeBuilder:
         for socket in reversed(list(sockets[len(template): len(sockets)])):
             sockets.remove(socket)
 
-    # TODO Write tests
-    def check_sockets(self) -> None:
+    def check_sockets(self,
+                      node_tree: Optional[ShaderNodeTree] = None
+                      ) -> None:
         """Checks that the node_tree has the correct inputs and outputs
         according to the _INPUT_TEMPLATE and _OUTPUT_TEMPLATE class
-        attributes.
+        attributes. If node_tree is None then the node_tree of this
+        _TreeBuilder's baker_node is used.
         """
-        node_tree = self.baker_node.node_tree
+        if node_tree is None:
+            node_tree = self.baker_node.node_tree
         self._check_sockets(node_tree.inputs, self._INPUT_TEMPLATE)
         self._check_sockets(node_tree.outputs, self._OUTPUT_TEMPLATE)
 
@@ -153,10 +156,8 @@ class _TreeBuilder:
 
         node_tree = bpy.data.node_groups.new(tree_name, "ShaderNodeTree")
 
-        node_tree.inputs.new(name="Color", type="NodeSocketColor")
-
-        node_tree.outputs.new(name="Baked", type="NodeSocketColor")
-        node_tree.outputs.new(name="Preview", type="NodeSocketFloat")
+        # check_sockets() will add all input/output sockets
+        self.check_sockets(node_tree)
 
         # Hide the default values of all inputs
         for in_socket in node_tree.inputs:
