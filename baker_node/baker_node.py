@@ -285,6 +285,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def draw_buttons(self, context, layout):
         layout.context_pointer_set("baker_node", self)
 
+        # Add spacing when there are no enabled output sockets
+        if not any(x.enabled for x in self.outputs):
+            layout.separator(factor=1.5)
+
         # Draw the "Bake"/"Cancel" button
         self._draw_bake_button(context, layout)
 
