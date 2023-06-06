@@ -5,6 +5,7 @@ import importlib
 
 submodule_names = ("baker_node_tests",
                    "bake_queue_tests",
+                   "internal_tree_tests",
                    "utils_tests",
                    "node_hasher_tests",
                    )
