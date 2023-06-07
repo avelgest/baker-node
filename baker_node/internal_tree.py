@@ -106,15 +106,20 @@ class _TreeBuilder:
         links.new(luminance.inputs[0], color_socket)
         links.new(average.inputs[0], color_socket)
 
-    def check_nodes(self) -> None:
-        """Checks that all necessary nodes are present in the node
-        tree. If any are missing then the node tree is rebuilt."""
+    def check_nodes(self) -> bool:
+        """Checks that all necessary nodes are present in the baker
+        node's node tree. If any are missing then the node tree is
+        rebuilt. Returns True if all nodes were present and False if
+        the node tree was rebuilt.
+        """
         nodes = self.nodes
         node_names = {x.name for x in nodes}
 
         # If there are missing nodes then rebuild the node tree
         if _node_names_set.difference(node_names):
             self.rebuild_node_tree()
+            return False
+        return True
 
     @classmethod
     def _check_sockets(cls,
@@ -270,6 +275,13 @@ def create_node_tree_for(baker_node) -> None:
 
     builder.create_node_tree()
     builder.rebuild_node_tree()
+
+
+def check_nodes(baker_node) -> bool:
+    return _TreeBuilder(baker_node).check_nodes()
+
+
+check_nodes.__doc__ = _TreeBuilder.check_nodes.__doc__
 
 
 def check_sockets(baker_node) -> None:

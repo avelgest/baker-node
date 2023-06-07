@@ -31,6 +31,24 @@ class TestInternalTree(unittest.TestCase):
         node_tree = self.material.node_tree
         node_tree.nodes.remove(self.baker_node)
 
+    def test_check_nodes(self):
+        baker_node = self.baker_node
+
+        # internal_tree.check_nodes returns False if it had to rebuild
+        # the node tree or True if the check passed.
+
+        # The default node tree state should pass
+        self.assertTrue(internal_tree.check_nodes(baker_node))
+
+        # Removing all nodes should cause a rebuild
+        baker_node.node_tree.nodes.clear()
+        self.assertFalse(internal_tree.check_nodes(baker_node))
+        self.assertTrue(internal_tree.check_nodes(baker_node))
+
+        # Should always pass after a rebuild
+        internal_tree.rebuild_node_tree(baker_node)
+        self.assertTrue(internal_tree.check_nodes(baker_node))
+
     def test_check_sockets(self):
         node_tree = self.baker_node.node_tree
 
