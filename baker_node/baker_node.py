@@ -191,7 +191,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.samples = get_prefs().default_samples
         self.width = 210
 
-        self.node_tree = internal_tree.create_node_tree_for(self)
+        internal_tree.create_node_tree_for(self)
         self._refresh_sockets_enabled()
 
     def copy(self, node):
@@ -199,7 +199,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         self.is_baked = False
 
-        self.node_tree = internal_tree.create_node_tree_for(self)
+        self.node_tree = None
+        internal_tree.create_node_tree_for(self)
         self.target_image = None
         self.target_attribute = ""
 

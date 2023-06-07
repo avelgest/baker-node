@@ -134,30 +134,30 @@ class _TreeBuilder:
         for socket in reversed(list(sockets[len(template): len(sockets)])):
             sockets.remove(socket)
 
-    def check_sockets(self,
-                      node_tree: Optional[ShaderNodeTree] = None
-                      ) -> None:
+    def check_sockets(self) -> None:
         """Checks that the node_tree has the correct inputs and outputs
         according to the _INPUT_TEMPLATE and _OUTPUT_TEMPLATE class
-        attributes. If node_tree is None then the node_tree of this
-        _TreeBuilder's baker_node is used.
+        attributes.
         """
-        if node_tree is None:
-            node_tree = self.baker_node.node_tree
+        node_tree = self.baker_node.node_tree
         self._check_sockets(node_tree.inputs, self._INPUT_TEMPLATE)
         self._check_sockets(node_tree.outputs, self._OUTPUT_TEMPLATE)
 
-    def create_node_tree(self) -> bpy.types.ShaderNodeTree:
-        """Creates and returns a node tree for this classes baker_node.
-        Note that this does not set the baker node's node_tree
-        property.
+    def create_node_tree(self) -> None:
+        """Creates a node tree for this instance's baker_node. Raises a
+        RuntimeError if the baker node already has a node tree.
         """
+        if self.baker_node.node_tree is not None:
+            raise RuntimeError(f"{self.baker_node.name} already has a node "
+                               "tree")
+
         tree_name = self.baker_node.node_tree_name
 
         node_tree = bpy.data.node_groups.new(tree_name, "ShaderNodeTree")
+        self.baker_node.node_tree = node_tree
 
         # check_sockets() will add all input/output sockets
-        self.check_sockets(node_tree)
+        self.check_sockets()
 
         # Hide the default values of all inputs
         for in_socket in node_tree.inputs:
@@ -262,13 +262,14 @@ class _TreeBuilder:
         return self.baker_node.node_tree.links
 
 
-def create_node_tree_for(baker_node) -> ShaderNodeTree:
+def create_node_tree_for(baker_node) -> None:
+    """Creates a node tree for baker_node. Raises a RuntimeError if
+    baker_node already has a node tree.
+    """
     builder = _TreeBuilder(baker_node)
 
-    node_tree = baker_node.node_tree = builder.create_node_tree()
+    builder.create_node_tree()
     builder.rebuild_node_tree()
-
-    return node_tree
 
 
 def check_sockets(baker_node) -> None:
