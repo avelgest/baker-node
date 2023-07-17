@@ -204,6 +204,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.target_image = None
         self.target_attribute = ""
 
+        self._refresh_sockets_enabled()
+
     def free(self):
         if self.node_tree is not None:
             bpy.data.node_groups.remove(self.node_tree)
