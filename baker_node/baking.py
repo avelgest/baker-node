@@ -59,6 +59,10 @@ class _BakerNodeBaker:
     # The name of the Material Output node created by the baker
     MA_OUTPUT_NAME = "bkn_baker_ma_output"
 
+    # The name of the output socket to add to the baker node when using
+    # an external Material Output node.
+    OUT_SOCKET_NAME = "Bake Shader"
+
     def __init__(self, baker_node, obj=None, is_preview=False):
         self.baker_node = baker_node
 
@@ -74,6 +78,25 @@ class _BakerNodeBaker:
         self._target_tree = baker_node.id_data
 
         self._exit_stack: Optional[contextlib.ExitStack] = None
+
+    @staticmethod
+    def _node_remover(*nodes: bpy.types.Node) -> typing.Callable[[], None]:
+        """Returns a function for safely removing nodes (by name)
+        from their node tree.
+        """
+        node_names = [x.name for x in nodes]
+        get_node_tree = utils.safe_node_tree_getter(nodes[0].id_data)
+
+        def node_remover():
+            node_tree = get_node_tree()
+            if node_tree is None:
+                return
+            for name in node_names:
+                node = node_tree.nodes.get(name)
+                if node is not None:
+                    node_tree.nodes.remove(node)
+
+        return node_remover
 
     def _deselect_all_nodes(self) -> None:
         """Deselect all nodes in the target node tree. The nodes will
@@ -107,6 +130,10 @@ class _BakerNodeBaker:
         """Creates a Material Output node and connects it to the socket
         that should be baked.
         """
+        if self._use_external_ma_node:
+            self._init_ma_output_node_external()
+            return
+
         node_tree = self.baker_node.node_tree
 
         ma_output_node = node_tree.nodes.new("ShaderNodeOutputMaterial")
@@ -115,15 +142,58 @@ class _BakerNodeBaker:
 
         node_tree.links.new(ma_output_node.inputs[0], self._bake_socket)
 
-        ma_out_node_name = ma_output_node.name
-        get_node_tree = utils.safe_node_tree_getter(node_tree)
+        clean_up = self._node_remover(ma_output_node)
+        self._exit_stack.callback(clean_up)
+
+    def _init_ma_output_node_external(self) -> None:
+        """Creates Material Output node in the node tree containing the
+        BakerNode and connects it.
+        """
+        baker_node = self.baker_node
+        node_tree = baker_node.id_data
+
+        ma_output_node = node_tree.nodes.new("ShaderNodeOutputMaterial")
+        ma_output_node.name = self.MA_OUTPUT_NAME
+        ma_output_node.target = 'CYCLES'
+        ma_output_node.location = baker_node.location
+        ma_output_node.hide = True
+        ma_output_node.width = 40
+
+        inner_tree = baker_node.node_tree
+        node_names = internal_tree.NodeNames
+
+        # Create a shader output socket on the baker node
+        output_name = self.OUT_SOCKET_NAME
+        output_socket = baker_node.outputs.get(output_name)
+        if output_socket is None:
+            inner_tree.outputs.new("NodeSocketShader", output_name)
+            output_socket = baker_node.outputs[output_name]
+            output_socket.hide = True
+
+        if baker_node.should_bake_alpha:
+            shader_node = inner_tree.nodes[node_names.color_alpha_shader]
+        else:
+            shader_node = inner_tree.nodes[node_names.emission_shader]
+
+        group_node = inner_tree.nodes[node_names.group_output]
+
+        inner_tree.links.new(group_node.inputs[output_name],
+                             shader_node.outputs[0])
+
+        node_tree.links.new(ma_output_node.inputs[0], output_socket)
+
+        node_remover = self._node_remover(ma_output_node)
+        inner_tree_getter = utils.safe_node_tree_getter(inner_tree)
 
         def clean_up():
-            node_tree = get_node_tree()
-            if node_tree is not None:
-                ma_out_node = node_tree.nodes.get(ma_out_node_name)
-                if ma_out_node is not None:
-                    node_tree.nodes.remove(ma_out_node)
+            node_remover()
+
+            # Remove the added output socket
+            inner_tree = inner_tree_getter()
+            if inner_tree is not None:
+                output_socket = inner_tree.outputs.get(output_name)
+                if output_socket is not None:
+                    inner_tree.outputs.remove(output_socket)
 
         self._exit_stack.callback(clean_up)
 
@@ -320,7 +390,6 @@ class _BakerNodeBaker:
                                        selected_objects=[self._object])
 
             op_caller.call(bpy.ops.object.bake, exec_ctx,
-                           type='EMIT',
                            uv_layer=self._uv_layer)
 
             if exec_ctx == 'INVOKE_DEFAULT':
@@ -374,7 +443,7 @@ class _BakerNodeBaker:
                 and cycles_props.device != prefs.cycles_device):
             cycles_props.device = prefs.cycles_device
 
-        cycles_props.bake_type = 'EMIT'
+        self._set_bake_type_settings(cycles_props, bake_props)
         cycles_props.film_exposure = 1.0
         # TODO add use_preview_adaptive_sampling/use_denoising to prefs?
         # cycles_props.use_preview_adaptive_sampling = True  # TODO ???
@@ -384,6 +453,20 @@ class _BakerNodeBaker:
         bake_props.target = self._cycles_target_enum
         bake_props.use_clear = True
         # bake_props.use_selected_to_active = False  # TODO ???
+
+    def _set_bake_type_settings(self,
+                                cycles_props: utils.TempChanges,
+                                bake_props: utils.TempChanges) -> None:
+
+        if not self.baker_node.should_bake_alpha:
+            cycles_props.bake_type = 'EMIT'
+        else:
+            cycles_props.bake_type = 'COMBINED'
+
+            for attr in dir(bake_props.original_object):
+                if attr.startswith("use_pass"):
+                    setattr(bake_props, attr, False)
+            bake_props.use_pass_emit = True
 
     def _set_material_to_node_tree(self, obj: bpy.types.Object) -> None:
         """Set obj to use the material that contains the baker node."""
@@ -398,9 +481,7 @@ class _BakerNodeBaker:
     def _bake_socket(self) -> NodeSocket:
         """The socket that should be connected to the Material Output
         before baking."""
-        nodes = self.baker_node.node_tree.nodes
-        emit_node = nodes.get(internal_tree.NodeNames.emission_shader)
-        return emit_node.outputs[0]
+        return internal_tree.get_baking_socket(self.baker_node)
 
     @property
     def _bake_type(self) -> str:
@@ -413,6 +494,13 @@ class _BakerNodeBaker:
         if self.is_preview:
             return 'VERTEX_COLORS'
         return self.baker_node.cycles_target_enum
+
+    @property
+    def _use_external_ma_node(self) -> bool:
+        """True if the Material Output node should be placed outside of
+        the internal node tree.
+        """
+        return not self.is_preview and self.baker_node.should_bake_alpha
 
     @property
     def _uv_layer(self) -> str:

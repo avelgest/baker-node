@@ -68,7 +68,7 @@ class TestBakerNode(unittest.TestCase):
         cls._old_prefs = {k: getattr(prefs, k) for k in cls._override_prefs}
 
         # Image to bake to
-        cls.img_target = bpy.data.images.new("tst_img", 4, 4,
+        cls.img_target = bpy.data.images.new("tst_img", 4, 4, alpha=True,
                                              is_data=True, float_buffer=True)
 
         # Color Attributes (On newer blender versions)
@@ -202,10 +202,12 @@ class TestBakerNode(unittest.TestCase):
         inputs = baker_node.inputs
         outputs = baker_node.outputs
 
-        self.assertEqual(len(inputs), 1)
+        # TODO Move to internal_tree_tests
+        self.assertEqual(len(inputs), 2)
         self.assertEqual(inputs[0].type, 'RGBA')
+        self.assertEqual(inputs[1].type, 'VALUE')
 
-        self.assertEqual(len(outputs), 2)
+        self.assertEqual(len(outputs), 3)
         self.assertEqual(outputs[0].type, 'RGBA')
         self.assertEqual(outputs[1].type, 'VALUE')
 
@@ -387,6 +389,49 @@ class TestBakerNode(unittest.TestCase):
         correct = 0.5 / 2.0
         for x in mesh.vertex_paint_masks[0].data:
             self.assertAlmostEqual(x.value, correct, delta=0.001)
+
+    def test_3_5_alpha_bake_img(self):
+        target = self.img_target
+
+        baker_node = self._new_baker_node("alpha_bake_test_img")
+        self._set_target(baker_node, target)
+
+        color_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        color_node.outputs[0].default_value = (0.5, 0.5, 0.5, 1.0)
+        self.node_tree.links.new(baker_node.inputs[0], color_node.outputs[0])
+
+        alpha_node = self.node_tree.nodes.new("ShaderNodeValue")
+        alpha_node.outputs[0].default_value = 0.7
+        self.node_tree.links.new(baker_node.inputs[1], alpha_node.outputs[0])
+
+        self.assertTrue(baker_node.should_bake_alpha)
+
+        baker_node.schedule_bake()
+
+        correct = it.cycle([0.5, 0.5, 0.5, 0.7])
+        for px, correct in zip(target.pixels, correct):
+            self.assertAlmostEqual(px, correct, delta=0.01)
+
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_3_6_alpha_bake_attr(self):
+        target_attr = self.attr_target_1
+
+        baker_node = self._new_baker_node("alpha_bake_test_attr")
+        self._set_target(baker_node, target_attr)
+
+        color_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        color_node.outputs[0].default_value = (0.5, 0.5, 0.5, 1.0)
+        self.node_tree.links.new(baker_node.inputs[0], color_node.outputs[0])
+
+        alpha_node = self.node_tree.nodes.new("ShaderNodeValue")
+        alpha_node.outputs[0].default_value = 0.7
+        self.node_tree.links.new(baker_node.inputs[1], alpha_node.outputs[0])
+
+        self.assertTrue(baker_node.should_bake_alpha)
+
+        baker_node.schedule_bake()
+
+        self._assert_color_attr_equal(target_attr, (0.5, 0.5, 0.5, 0.7))
 
     def _test_greyscale_method(self,
                                baker_node: BakerNode,

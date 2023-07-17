@@ -368,14 +368,20 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self._refresh_sockets_enabled()
 
     def _refresh_sockets_enabled(self) -> None:
+        # TODO Move to internal_tree module
         target_type = self.target_type
 
+        has_alpha_in = target_type != 'VERTEX_MASK'
         has_color_out = target_type not in ('IMAGE_TEX_PLANE', 'VERTEX_MASK')
+        has_alpha_out = has_color_out
         has_preview_out = (target_type == 'VERTEX_MASK')
 
         internal_tree.check_sockets(self)
-        self.outputs[0].enabled = has_color_out
-        self.outputs[1].enabled = has_preview_out
+        self.inputs["Color"].enabled = True
+        self.inputs["Alpha In"].enabled = has_alpha_in
+        self.outputs["Baked"].enabled = has_color_out
+        self.outputs["Baked Alpha"].enabled = has_alpha_out
+        self.outputs["Preview"].enabled = has_preview_out
 
     def _refresh_targets(self) -> None:
         internal_tree.refresh_targets(self)
@@ -568,7 +574,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         size = prefs.auto_target_img_size
         return bpy.data.images.new(
                         self._auto_target_name, size, size,
-                        alpha=False,
+                        alpha=True,
                         float_buffer=self._guess_should_bake_float(),
                         is_data=self._guess_should_bake_non_color())
 
@@ -723,6 +729,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return _preview_collection.get(self.identifier)
 
     @property
+    def should_bake_alpha(self) -> bool:
+        """Whether the alpha input of this node should be baked."""
+        alpha_soc = self.inputs.get("Alpha In")
+        return alpha_soc is not None and alpha_soc.is_linked
+
+    @property
     def target_image(self) -> Optional[bpy.types.Image]:
         """"The Image this node should bake to."""
         image_node = internal_tree.get_target_image_node(self)
@@ -736,7 +748,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     @property
     def _temp_color_attr(self) -> str:
         """The name of the temporary color attribute used by this node
-        when needed,
+        when needed.
         """
         return f"_{self.identifier}.tmp"
 

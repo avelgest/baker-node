@@ -7,14 +7,22 @@ from typing import Optional, Union
 
 import bpy
 
-from bpy.types import ShaderNode, ShaderNodeTree
+from bpy.types import ShaderNode
 
 
 class NodeNames:
     """Names for the nodes used in BakerNode's internal node tree."""
     group_input = "Baker Node Group Input"
     group_output = "Baker Node Group Output"
+
+    # Emission shader for the 'Color' input
     emission_shader = "Baker Node Shader"
+    # Emission shader for the 'Alpha' input
+    alpha_shader = "Baker Node Alpha Shader"
+    # Add Shader node that adds emission_shader and alpha_shader
+    color_alpha_shader = "Baker Node Color Alpha Shader"
+    # Math Node (1 - alpha) between alpha_shader and alpha input
+    alpha_invert = "Baker Node Alpha Invert"
 
     baked_img_uv = "Baker Node Baked Image UV"
     baked_img = "Baker Node Baked Image"
@@ -37,10 +45,12 @@ class _TreeBuilder:
 
     _INPUT_TEMPLATE = (
         ("Color", "NodeSocketColor"),
+        ("Alpha In", "NodeSocketFloat"),
     )
 
     _OUTPUT_TEMPLATE = (
         ("Baked", "NodeSocketColor"),
+        ("Baked Alpha", "NodeSocketFloat"),
         ("Preview", "NodeSocketFloat"),
     )
 
@@ -105,6 +115,42 @@ class _TreeBuilder:
         links.new(separate_rgb.inputs[0], color_socket)
         links.new(luminance.inputs[0], color_socket)
         links.new(average.inputs[0], color_socket)
+
+    def _add_baking_shader_nodes(self) -> None:
+        nodes = self.nodes
+        links = self.links
+
+        color_shader = nodes.new("ShaderNodeEmission")
+        color_shader.name = NodeNames.emission_shader
+        color_shader.label = "Color Shader"
+        color_shader.location = nodes[NodeNames.group_output].location
+        color_shader.location.y -= 160
+
+        alpha_shader = nodes.new("ShaderNodeBsdfTransparent")
+        alpha_shader.name = NodeNames.alpha_shader
+        alpha_shader.label = "Alpha Shader"
+        alpha_shader.location = color_shader.location
+        alpha_shader.location.y -= 140
+
+        color_alpha_shader = nodes.new("ShaderNodeAddShader")
+        color_alpha_shader.name = NodeNames.color_alpha_shader
+        color_alpha_shader.label = "Color + Alpha Shader"
+        color_alpha_shader.location = alpha_shader.location
+        color_alpha_shader.location.x += 200
+
+        alpha_invert = nodes.new("ShaderNodeMath")
+        alpha_invert.name = NodeNames.alpha_invert
+        alpha_invert.label = "1 - Alpha"
+        alpha_invert.location = alpha_shader.location
+        alpha_invert.location.x -= 200
+
+        alpha_invert.operation = 'SUBTRACT'
+        alpha_invert.use_clamp = True
+        alpha_invert.inputs[0].default_value = 1.0
+
+        links.new(alpha_shader.inputs[0], alpha_invert.outputs[0])
+        links.new(color_alpha_shader.inputs[0], color_shader.outputs[0])
+        links.new(color_alpha_shader.inputs[1], alpha_shader.outputs[0])
 
     def check_nodes(self) -> bool:
         """Checks that all necessary nodes are present in the baker
@@ -189,12 +235,7 @@ class _TreeBuilder:
 
         self._add_baked_nodes(target_image)
         self._add_grayscale_nodes()
-
-        emission_shader = nodes.new("ShaderNodeEmission")
-        emission_shader.name = NodeNames.emission_shader
-        emission_shader.label = "Baking Shader"
-        emission_shader.location = group_output.location
-        emission_shader.location.y -= 160
+        self._add_baking_shader_nodes()
 
         self.link_nodes()
 
@@ -220,13 +261,20 @@ class _TreeBuilder:
         # Ensure that all expected inputs/outputs are present
         self.check_sockets()
 
+        group_input = nodes[NodeNames.group_input]
+        group_output = nodes[NodeNames.group_output]
+
         links.new(nodes[NodeNames.emission_shader].inputs[0],
-                  nodes[NodeNames.group_input].outputs[0])
+                  group_input.outputs["Color"])
+        links.new(nodes[NodeNames.alpha_invert].inputs[1],
+                  group_input.outputs["Alpha In"])
 
         if baker_node.target_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
-            baked_val_soc = nodes[NodeNames.baked_img].outputs[0]
+            baked_val_node = nodes[NodeNames.baked_img]
+            baked_val_soc, baked_alpha_soc = baked_val_node.outputs[:2]
         elif baker_node.target_type == 'COLOR_ATTRIBUTE':
-            baked_val_soc = nodes[NodeNames.baked_attr].outputs[0]
+            baked_val_node = nodes[NodeNames.baked_attr]
+            baked_val_soc, baked_alpha_soc = baked_val_node.outputs[:2]
         elif baker_node.target_type == 'VERTEX_MASK':
             self._link_grayscale_node()
             # No outputs for 'VERTEX_MASK'
@@ -234,7 +282,8 @@ class _TreeBuilder:
         else:
             raise ValueError(f"Unknown target type '{baker_node.target_type}'")
 
-        links.new(nodes[NodeNames.group_output].inputs[0], baked_val_soc)
+        links.new(group_output.inputs["Baked"], baked_val_soc)
+        links.new(group_output.inputs["Baked Alpha"], baked_alpha_soc)
 
     def _link_grayscale_node(self) -> None:
         """Link the grayscale node that should be used by the baker node
@@ -344,3 +393,16 @@ def get_target_image_node(baker_node,
         rebuild_node_tree(baker_node)
         image_node = node_tree.nodes[NodeNames.baked_img]
     return image_node
+
+
+def get_baking_socket(baker_node) -> bpy.types.NodeSocketShader:
+    """Returns the socket in baker_node's internal tree that should be
+    connected to the material output when baking.
+    """
+    check_nodes(baker_node)
+
+    if baker_node.should_bake_alpha:
+        node_name = NodeNames.color_alpha_shader
+    else:
+        node_name = NodeNames.emission_shader
+    return baker_node.node_tree.nodes[node_name].outputs[0]

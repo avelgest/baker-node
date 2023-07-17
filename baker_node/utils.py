@@ -259,6 +259,18 @@ def import_all(module_names: Collection[str],
     return imported
 
 
+def node_offset(node: bpy.types.Node, x: float = 0, y: float = 0) -> Vector:
+    """Returns the location of node offset by x and y."""
+    return node.location + Vector((x, y))
+
+
+def offset_node_from(node: bpy.types.Node, offset_from: bpy.types.Node,
+                     x: float = 0, y: float = 0) -> None:
+    """Offsets node from other node offset_from by x and y."""
+    other_node_loc = offset_from.location
+    node.location = (other_node_loc.x + x, other_node_loc.y + y)
+
+
 def settings_from_image(image: bpy.types.Image) -> typing.Dict[str, Any]:
     """Returns a dict that can be passed as kwargs to bpy.data.images.new
     to create a new image with the same settings as image.
@@ -401,3 +413,7 @@ class TempChanges:
             else:
                 setattr(obj, k, v)
         self._old_values.clear()
+
+    @property
+    def original_object(self) -> Any:
+        return self._obj
