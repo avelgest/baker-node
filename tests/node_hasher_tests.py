@@ -126,6 +126,19 @@ class TestShaderNodeHasher(unittest.TestCase):
         self.assertNotEqual(node_hash, hash_node(node))
         self.assertNotEqual(soc_hash, hash_socket(node.inputs[0]))
 
+    def test_switching_outputs(self):
+        """"Check changing the linked output socket."""
+        node = self._add_default_math()
+
+        other = self.nodes.new("ShaderNodeLayerWeight")
+
+        self.links.new(node.inputs[0], other.outputs[0])
+        soc_hash = hash_socket(node.inputs[0])
+
+        self.links.new(node.inputs[0], other.outputs[1])
+
+        self.assertNotEqual(soc_hash, hash_socket(node.inputs[0]))
+
     def test_two_nodes(self):
         """Check that two unlinked nodes with the same settings
         have the same hash.

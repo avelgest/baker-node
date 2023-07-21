@@ -156,7 +156,7 @@ class NodeHasher:
     def _hash_socket_with(self,
                           socket: NodeSocket,
                           hash_obj: _HashObj) -> None:
-        """Hashes socket using hash_obj."""
+        """Hashes an input socket using hash_obj."""
 
         hash_obj.update(socket.identifier.encode())
 
@@ -165,6 +165,8 @@ class NodeHasher:
             if link is not None:
                 # link may be None if the user is in the process of
                 # disconnecting the socket.
+
+                hash_obj.update(link.from_socket.identifier.encode())
 
                 # Update with the hash of the linked node
                 hash_obj.update(self.hash_node(link.from_node))
