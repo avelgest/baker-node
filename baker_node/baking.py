@@ -568,14 +568,20 @@ class _BakerNodePostprocess:
         if display_device == 'sRGB':
             # For Blender versions before the color_srgb property
             # perform a very approximate conversion to sRGB.
+
             np = utils.get_numpy()
             exponent = 1/2.2
 
             if np is not None:
-                return np.power(color_data, exponent, dtype=np.float32)
+                np_array = np.reshape(color_data, (-1, 4))
+                np_array[:, 0:3] = np.power(np_array[:, 0:3], exponent)
+                return np_array.ravel()
 
             # Non-numpy version (slow)
-            return array("f", [x**exponent for x in color_data])
+            for i, x in enumerate(color_data):
+                if i & 0b11:  # Skip indices that are multiples of 4
+                    color_data[i] = x**exponent
+            return color_data
         return color_data
 
     def _postprocess_preview(self) -> None:
