@@ -80,8 +80,13 @@ class NodeHasher:
 
         self._hash_node_props_with(node, hash_obj)
 
+        for x in node.outputs:
+            if x.enabled:
+                self._hash_output_socket_with(x, hash_obj)
+
         for x in node.inputs:
-            self._hash_socket_with(x, hash_obj)
+            if x.enabled:
+                self._hash_socket_with(x, hash_obj)
 
         self._hash_cache[node] = hash_obj.digest()
 
@@ -139,6 +144,14 @@ class NodeHasher:
 
         else:
             hash_obj.update(str(value).encode())
+
+    def _hash_output_socket_with(self,
+                                 socket: NodeSocket,
+                                 hash_obj: _HashObj) -> None:
+        """Hashes an output socket using hash_obj."""
+        # Only hash the default_value property
+        if hasattr(socket, "default_value"):
+            self._hash_value_with(socket.default_value, hash_obj)
 
     def _hash_socket_with(self,
                           socket: NodeSocket,

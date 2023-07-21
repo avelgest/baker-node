@@ -137,6 +137,17 @@ class TestShaderNodeHasher(unittest.TestCase):
 
         self.assertEqual(hash_node(node1), hash_node(node2))
 
+    def test_value_node(self):
+        """Tests hashing a Value node."""
+        node = self.nodes.new("ShaderNodeValue")
+        node.outputs[0].default_value = 0.5
+
+        hash_val = hash_node(node)
+
+        # Test changing the default_value of the output socket
+        node.outputs[0].default_value = 1.0
+        self.assertNotEqual(hash_val, hash_node(node))
+
     def test_curve_node(self):
         """Tests hashing the Float Curve node."""
         node = self.nodes.new("ShaderNodeFloatCurve")
