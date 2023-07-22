@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import functools
 import importlib
 import itertools as it
 import types
@@ -299,6 +300,62 @@ def suffix_num_unique_in(basename: str,
         name = f"{basename}.{next(suffix_num):0{suffix_len}}"
         if name not in container:
             return name
+
+
+@functools.lru_cache(maxsize=16)
+def checker_image(width: int,
+                  height: int,
+                  square_size: int
+                  ) -> typing.Sequence:
+    """Creates a checker image (e.g. used as background for images with
+    alpha). The results of this function are cached in an lru_cache.
+    Params:
+        width: The width of the image in pixels
+        height: The height of the image in pixels
+        square_size: the width/height of each checker square in pixels
+    Returns:
+        A 4-component floating-point image as either a NumPy array or
+        an array.array.
+    """
+    # TODO Add color arguments
+    # TODO Add color-space arguments
+    color_1 = (0.21, 0.21, 0.21, 1.0)
+    color_2 = (0.16, 0.16, 0.16, 1.0)
+
+    np = get_numpy()
+    if np is not None:
+        # Create a 2D bool mask for color_2 squares
+
+        # row / col are 1D arrays that alternates between False and True
+        # e.g [False, False, False, True, True, True, False, False, False, ...]
+        row = np.resize([False] * square_size + [True] * square_size, width)
+        col = row if width == height else np.resize(row, height)
+        # Extend row/col to the full height/width of the image then xor
+        c2_mask = (row.reshape((1, -1)).repeat(height, 0)
+                   ^ col.reshape((-1, 1)).repeat(width, 1))
+
+        # Fill a 3D array with color_1 then use the mask to set color_2
+        out = np.full((width, height, 4), color_1, dtype=np.float32)
+        out[c2_mask] = color_2
+        return out.ravel()
+
+    # Non-NumPy version
+    # Create a row of pixels that alternates between color_1 and
+    # color_2 every square_size pixels.
+    row = array('f', color_1 * square_size + color_2 * square_size)
+    row = row * ((width // (2 * square_size)) + 2)
+
+    # A single row of pixels for rows that start with color_1
+    row_a = row[:4*width]
+    # A single row of pixels for rows that start with color_2
+    row_b = row[4*square_size: 4*square_size + 4*width]
+
+    # Create the first 2*square_size rows of the image
+    out = row_a * square_size
+    out.extend(row_b * square_size)
+    # Repeat the first two rows for the rest of the image
+    out *= ((height // (2 * square_size)) + 2)
+    return out[:width * height * 4]
 
 
 class OpCaller:

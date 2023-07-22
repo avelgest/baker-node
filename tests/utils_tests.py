@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import contextlib
+import itertools as it
 import unittest
 
 import bpy
@@ -8,6 +10,20 @@ from ..baker_node import preferences
 from ..baker_node import utils
 
 supports_color_attrs = preferences.supports_color_attributes
+
+# NumPy can take a long time to import so make tests optional
+# TODO Add switch for NUMPY_TESTS at the subpackage level
+NUMPY_TESTS = False
+
+
+@contextlib.contextmanager
+def use_numpy(value: bool):
+    prefs = preferences.get_prefs()
+    old_value = prefs.use_numpy
+
+    prefs.use_numpy = value
+    yield
+    prefs.use_numpy = old_value
 
 
 class TestUtils(unittest.TestCase):
@@ -64,3 +80,43 @@ class TestUtils(unittest.TestCase):
         for x in range(4):
             self.assertAlmostEqual(mask.data[x].value, x/4, delta=1/256)
         mesh.color_attributes.remove(color_attr)
+
+    def _check_checker_grid(self, width: int, height: int,
+                            s_size: int) -> None:
+        """Use utils.checker_image to create a checkered grid and test
+        that it is correct.
+        """
+        pixels = utils.checker_image(width, height, s_size)
+
+        self.assertEqual(len(pixels), 4 * width * height)
+        self.assertTrue(getattr(pixels, "typecode", "") == 'f'
+                        or pixels.dtype.char == 'f')
+        color_1 = tuple(pixels[:4])
+        color_2 = tuple(pixels[4*s_size: 4*s_size+4])
+
+        self.assertNotEqual(color_1, color_2)
+
+        row_width = 4 * width
+
+        for y in range(height):
+            if y % (2*s_size) < s_size:
+                correct = it.cycle(color_1 * s_size + color_2 * s_size)
+            else:
+                correct = it.cycle(color_2 * s_size + color_1 * s_size)
+            row = pixels[y*row_width: (y+1)*row_width]
+            for x in row:
+                self.assertAlmostEqual(x, next(correct))
+
+    def _test_checker_image(self) -> None:
+        utils.checker_image.cache_clear()
+
+        self._check_checker_grid(16, 16, 2)
+        self._check_checker_grid(16, 16, 3)
+
+    def test_checker_image(self):
+        """Test the utils.checker_image function."""
+        if NUMPY_TESTS:
+            with use_numpy(True):
+                self._test_checker_image()
+        with use_numpy(False):
+            self._test_checker_image()
