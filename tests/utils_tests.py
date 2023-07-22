@@ -2,7 +2,10 @@
 
 import contextlib
 import itertools as it
+import random
 import unittest
+
+from array import array
 
 import bpy
 
@@ -120,3 +123,55 @@ class TestUtils(unittest.TestCase):
                 self._test_checker_image()
         with use_numpy(False):
             self._test_checker_image()
+
+    def _test_apply_background(self):
+        img_size = 16 * 16
+        delta = 0.001
+
+        fg = array('f', (random.random() for _ in range(img_size)))
+        bg = array('f', (random.random() for _ in range(img_size)))
+
+        with use_numpy(False):
+            applied = utils.apply_background(fg, bg)
+        self.assertEqual(len(applied), img_size)
+
+        # Check not the same as either fg or bg
+        self.assertFalse(all(x == y for x, y in zip(applied, fg)))
+        self.assertFalse(all(x == y for x, y in zip(applied, bg)))
+
+        # Alpha should be 1.0
+        for x in applied[3::4]:
+            self.assertAlmostEqual(x, 1.0, delta=delta)
+
+        # Check that NumPy and non-NumPy versions give the same result
+        if NUMPY_TESTS:
+            with use_numpy(True):
+                applied_np = utils.apply_background(fg, bg)
+
+            self.assertEqual(len(applied_np), len(applied))
+            for (x, y) in zip(applied, applied_np):
+                self.assertAlmostEqual(x, y, delta=delta)
+
+        # Should be same as bg (except alpha) if fg's alpha is 0.0
+        for i in range(3, img_size, 4):
+            fg[i] = 0.0
+        applied = utils.apply_background(fg, bg)
+        for i, x in enumerate(applied):
+            self.assertAlmostEqual(x, bg[i] if i % 4 != 3 else 1.0,
+                                   delta=delta)
+
+        # Should be same as fg (except alpha) if fg's alpha is 1.0
+        for i in range(3, img_size, 4):
+            fg[i] = 1.0
+        applied = utils.apply_background(fg, bg)
+        for i, x in enumerate(applied):
+            self.assertAlmostEqual(x, fg[i] if i % 4 != 3 else 1.0,
+                                   delta=delta)
+
+    def test_apply_background(self):
+        """Test the apply_background function."""
+        if NUMPY_TESTS:
+            with use_numpy(True):
+                self._test_apply_background()
+        with use_numpy(False):
+            self._test_apply_background()

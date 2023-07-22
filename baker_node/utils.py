@@ -358,6 +358,36 @@ def checker_image(width: int,
     return out[:width * height * 4]
 
 
+def apply_background(foreground, background) -> typing.Sequence:
+    if len(foreground) != len(background):
+        raise ValueError("Expected foreground and background to have the "
+                         "same length")
+    np = get_numpy()
+    if np is not None:
+        new_shape = (len(foreground) // 4, 4)
+        background = np.reshape(background, new_shape)
+        foreground = np.reshape(foreground, new_shape)
+
+        alpha = foreground[:, 3].reshape((-1, 1))
+
+        out = np.ones_like(foreground)
+
+        out[:, :3] = (1-alpha) * background[:, :3] + alpha * foreground[:, :3]
+        return out.ravel()
+
+    out = array('f', [1]) * len(foreground)
+    alpha = foreground[3::4]
+
+    alpha_val = alpha[0]
+    for i in range(len(out) - 1):
+        if i % 4 != 3:  # Leave the alpha values as 1.0
+            out[i] = (1-alpha_val) * background[i] + alpha_val * foreground[i]
+        else:
+            # The alpha for the following pixel
+            alpha_val = alpha[(i+1)//4]
+    return out
+
+
 class OpCaller:
     """Class that can call operators using the provided context and
     context override keyword args. Uses Context.temp_override when
