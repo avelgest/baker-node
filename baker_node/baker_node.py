@@ -352,9 +352,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         update. If given, hasher should be a NodeHasher instance used
         to hash this node's input socket(s).
         """
-        if (self.show_bake_preview
-                and self._can_display_preview
-                and not self.hide and not self.mute):
+        if self.preview_visible and not self.mute:
             # Schedule the preview bake if the hash of the node's
             # input has changed
             if hasher is None:
@@ -731,6 +729,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return _preview_collection.get(self.identifier)
 
     @property
+    def preview_visible(self) -> bool:
+        """True if this node is currently displaying a preview."""
+        return (self.show_bake_preview
+                and self._can_display_preview
+                and not self.hide)
+
+    @property
     def should_bake_alpha(self) -> bool:
         """Whether the alpha input of this node should be baked."""
         alpha_soc = self.inputs.get("Alpha In")
@@ -846,6 +851,8 @@ def bkn_node_context_menu_func(self, context):
     if (active_node is not None
             and active_node.bl_idname == BakerNode.bl_idname):
 
+        layout.context_pointer_set("baker_node", active_node)
+
         if active_node.cycles_target_enum == 'IMAGE_TEXTURES':
             col = layout.column(align=True)
             col.operator_context = 'INVOKE_DEFAULT'
@@ -854,6 +861,9 @@ def bkn_node_context_menu_func(self, context):
 
             col.operator("image.save")
             col.operator("image.reload", text="Discard Image Changes")
+
+        if active_node.preview_visible and not active_node.mute:
+            layout.operator("node.bkn_refresh_preview")
 
 
 class BakerNodeSettingsPanel(bpy.types.Panel):
