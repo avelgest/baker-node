@@ -500,7 +500,7 @@ class _BakerNodeBaker:
         """True if the Material Output node should be placed outside of
         the internal node tree.
         """
-        return not self.is_preview and self.baker_node.should_bake_alpha
+        return self.baker_node.should_bake_alpha
 
     @property
     def _uv_layer(self) -> str:
@@ -605,7 +605,13 @@ class _BakerNodePostprocess:
 
         color_data = self._get_color_attr_as_display(color_attr)
 
-        preview.image_pixels_float.foreach_set(color_data[:-4])
+        if self.baker_node.should_bake_alpha:
+            # Add a checkered background
+            background = utils.checker_image(max_size, max_size, 4)
+            image = utils.apply_background(color_data[:-4], background)
+        else:
+            image = color_data[:-4]
+        preview.image_pixels_float.foreach_set(image)
 
         bpy.data.meshes.remove(mesh)
 

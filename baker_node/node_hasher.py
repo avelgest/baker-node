@@ -176,6 +176,15 @@ class NodeHasher:
         if hasattr(socket, "default_value"):
             self._hash_value_with(socket.default_value, hash_obj)
 
+    def hash_input_sockets(self, node: Node) -> bytes:
+        """Returns the hash of the enabled input sockets of node as
+        bytes.
+        """
+        hash_obj = self._create_hash_obj()
+        for socket in node.inputs:
+            self._hash_socket_with(socket, hash_obj)
+        return hash_obj.digest()
+
     def hash_socket(self, socket: NodeSocket) -> bytes:
         """Returns the hash of an input socket as bytes."""
         if socket.is_output:

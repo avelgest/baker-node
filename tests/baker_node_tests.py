@@ -603,3 +603,33 @@ class TestBakerNode(unittest.TestCase):
         for x, y in zip(preview.image_pixels_float,
                         it.cycle([0.2, 0.5, 0.8, 1.0])):
             self.assertAlmostEqual(x, y, delta=0.02)
+
+    @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
+    def test_5_5_preview_bake_alpha(self):
+        baker_node = self._new_baker_node("preview_bake_test")
+        baker_node.target_type = 'IMAGE_TEX_PLANE'
+
+        color = (0.9, 0.9, 0.9, 1.0)
+        color_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        color_node.outputs[0].default_value = color
+        self.node_tree.links.new(baker_node.inputs[0], color_node.outputs[0])
+
+        alpha_node = self.node_tree.nodes.new("ShaderNodeValue")
+        alpha_node.outputs[0].default_value = 0.5
+        self.node_tree.links.new(baker_node.inputs[0], alpha_node.outputs[0])
+
+        with _temp_set(bpy.context.scene.display_settings,
+                       "display_device", 'None'):
+            baker_node.schedule_preview_bake()
+
+        preview = baker_node.preview
+        expected_size = 4 * preferences.get_prefs().preview_size ** 2
+        self.assertEqual(len(preview.image_pixels_float), expected_size)
+
+        # For now just check that alpha == 1.0 and that the RGB values
+        # are different from color_node
+        for x, y in zip(preview.image_pixels_float, it.cycle(color)):
+            if y == 1.0:
+                self.assertAlmostEqual(x, 1.0)
+            else:
+                self.assertNotAlmostEqual(x, y, delta=0.02)

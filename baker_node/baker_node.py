@@ -359,7 +359,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             # input has changed
             if hasher is None:
                 hasher = NodeHasher(self.id_data)
-            current_hash = hasher.hash_socket(self.inputs[0])
+            current_hash = hasher.hash_input_sockets(self)
 
             if current_hash != self._last_preview_hash:
                 self._last_preview_hash = current_hash
