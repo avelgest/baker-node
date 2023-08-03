@@ -176,7 +176,7 @@ class TestBakerNode(unittest.TestCase):
         self.assertTrue(baker_node.identifier)
         self.assertTrue(baker_node.node_tree)
 
-        self.assertFalse(baker_node.is_baked)
+        self.assertFalse(baker_node.last_bake_hash)
 
         baker_node_1 = self._new_baker_node()
         self.assertTrue(baker_node_1.identifier)
@@ -231,7 +231,7 @@ class TestBakerNode(unittest.TestCase):
 
         self.assertTrue(new_node.identifier)
         self.assertIsNotNone(new_node.node_tree)
-        self.assertFalse(new_node.is_baked)
+        self.assertFalse(new_node.last_bake_hash)
         self.assertFalse(new_node.bake_in_progress)
 
     def test_2_4_targets(self):
@@ -274,7 +274,7 @@ class TestBakerNode(unittest.TestCase):
         baker_node = self._new_baker_node("img_bake_test")
         img_target = self.img_target
 
-        self.assertFalse(baker_node.is_baked)
+        self.assertFalse(baker_node.last_bake_hash)
 
         self._set_target(baker_node, img_target)
 
@@ -287,7 +287,7 @@ class TestBakerNode(unittest.TestCase):
         # Since background_baking is False this should bake immediately
         baker_node.schedule_bake()
 
-        self.assertTrue(baker_node.is_baked)
+        self.assertTrue(baker_node.last_bake_hash)
         self.assertFalse(baker_node.bake_in_progress)
 
         px_color = self._get_pixels_rgb(img_target)
@@ -318,7 +318,7 @@ class TestBakerNode(unittest.TestCase):
 
         baker_node.schedule_bake()
 
-        self.assertTrue(baker_node.is_baked)
+        self.assertTrue(baker_node.last_bake_hash)
         self.assertFalse(baker_node.bake_in_progress)
 
         self._assert_color_attr_equal(target_attr, (0.5, 0.5, 0.5, 1.0))
@@ -340,7 +340,7 @@ class TestBakerNode(unittest.TestCase):
         # Since background_baking is False this should bake immediately
         baker_node.schedule_bake()
 
-        self.assertTrue(baker_node.is_baked)
+        self.assertTrue(baker_node.last_bake_hash)
         self.assertFalse(baker_node.bake_in_progress)
 
         px_color = self._get_pixels_rgb(img_target)
@@ -367,7 +367,7 @@ class TestBakerNode(unittest.TestCase):
 
         baker_node.schedule_bake()
 
-        self.assertTrue(baker_node.is_baked)
+        self.assertTrue(baker_node.last_bake_hash)
         self.assertFalse(baker_node.bake_in_progress)
 
         # Check that mesh now has a vertex paint mask
@@ -489,9 +489,9 @@ class TestBakerNode(unittest.TestCase):
         # This should bake both baker_node_1 and baker_node_2
         baker_node_1.schedule_bake()
 
-        self.assertTrue(baker_node_1.is_baked)
-        self.assertTrue(baker_node_2.is_baked)
-        self.assertFalse(baker_node_3.is_baked)
+        self.assertTrue(baker_node_1.last_bake_hash)
+        self.assertTrue(baker_node_2.last_bake_hash)
+        self.assertFalse(baker_node_3.last_bake_hash)
 
         self._assert_color_attr_equal(self.attr_target_1, (0.1, 0.1, 0.1, 1.0))
         self._assert_color_attr_equal(self.attr_target_2, (0.2, 0.2, 0.2, 1.0))

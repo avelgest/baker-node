@@ -72,12 +72,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         description="A unique identifier for this BakerNode instance"
     )
 
-    is_baked: BoolProperty(
-        name="Is Baked",
-        description="Has this node been baked yet",
-        default=False
-    )
-
     target_type: EnumProperty(
         name="Bake Mode",
         description="The type of target to bake to",
@@ -188,7 +182,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             node_tree = context.space_data.edit_tree
 
         self.identifier = self._create_identifier(node_tree=node_tree)
-        self.is_baked = False
         self.samples = get_prefs().default_samples
         self.width = 210
 
@@ -197,8 +190,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def copy(self, node):
         self.identifier = self._create_identifier(node_tree=node.id_data)
-
-        self.is_baked = False
 
         self.node_tree = None
         internal_tree.create_node_tree_for(self)
@@ -511,15 +502,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             self.on_bake_cancel()
             raise e
 
-        self.is_baked = True
         self._on_bake_end()
+
+        self.last_bake_hash = NodeHasher(self.id_data).hash_input_sockets(self)
 
     def on_bake_cancel(self, _obj: bpy.types.Object = None) -> None:
         """Called if the bake is cancelled."""
         if not self.bake_in_progress:
             return
 
-        self.is_baked = False
         self._on_bake_end()
 
     def cancel_bake(self, synced: bool = False) -> None:
@@ -742,9 +733,23 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return 'IMAGE_TEXTURES'
 
     @property
+    def last_bake_hash(self) -> bytes:
+        """The hash of this node the last time its bake was completed.
+        This will be an empty bytes object if this node has never
+        been baked.
+        """
+        return self.get("last_bake_hash", b"")
+
+    @last_bake_hash.setter
+    def last_bake_hash(self, value: bytes):
+        if not isinstance(value, bytes):
+            raise TypeError("Expected a bytes value")
+        self["last_bake_hash"] = value
+
+    @property
     def _last_preview_hash(self) -> bytes:
         """The hash of this node when its preview was last updated."""
-        return self.get("last_preview_hash", b"0")
+        return self.get("last_preview_hash", b"")
 
     @_last_preview_hash.setter
     def _last_preview_hash(self, value: bytes):
