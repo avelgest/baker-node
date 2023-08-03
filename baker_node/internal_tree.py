@@ -49,7 +49,7 @@ class _TreeBuilder:
     )
 
     _OUTPUT_TEMPLATE = (
-        ("Baked", "NodeSocketColor"),
+        ("Baked Color", "NodeSocketColor"),
         ("Baked Alpha", "NodeSocketFloat"),
         ("Preview", "NodeSocketFloat"),
     )
@@ -191,6 +191,12 @@ class _TreeBuilder:
         attributes.
         """
         node_tree = self.baker_node.node_tree
+
+        # "Baked" changed to "Baked Color" in v0.7
+        if ("Baked" in node_tree.outputs
+                and "Baked Color" not in node_tree.outputs):
+            node_tree.outputs["Baked"].name = "Baked Color"
+
         self._check_sockets(node_tree.inputs, self._INPUT_TEMPLATE)
         self._check_sockets(node_tree.outputs, self._OUTPUT_TEMPLATE)
 
@@ -282,7 +288,7 @@ class _TreeBuilder:
         else:
             raise ValueError(f"Unknown target type '{baker_node.target_type}'")
 
-        links.new(group_output.inputs["Baked"], baked_val_soc)
+        links.new(group_output.inputs["Baked Color"], baked_val_soc)
         links.new(group_output.inputs["Baked Alpha"], baked_alpha_soc)
 
     def _link_grayscale_node(self) -> None:

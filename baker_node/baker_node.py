@@ -398,7 +398,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         sockets_enabled = {
             "Color": True,
             "Alpha In": has_alpha_in,
-            "Baked": has_color_out,
+            "Baked": has_color_out,  # Replaced with Baked Color after v0.7
+            "Baked Color": has_color_out,
             "Baked Alpha": has_alpha_out,
             "Preview": has_preview_out
         }
