@@ -269,13 +269,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 # Plane axes
                 layout.prop(self, "target_plane_align")
 
-            # Colorspace
+            # Colorspace + check alpha
             if image_node is not None and image_node.image is not None:
+                image = image_node.image
                 row = layout.row()
-                row.enabled = not image_node.image.is_dirty
+                row.enabled = not image.is_dirty
                 row.alignment = 'RIGHT'
                 row.prop(image_node.image.colorspace_settings, "name",
                          text="Color Space")
+
+                # Warn if alpha socket is connected but image has no alpha
+                if self.should_bake_alpha and not utils.image_has_alpha(image):
+                    layout.label(text="Image has no alpha channel",
+                                 icon='ERROR')
 
         elif self.target_type == 'COLOR_ATTRIBUTE':
             row = layout.row(align=True)

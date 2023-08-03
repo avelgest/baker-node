@@ -388,6 +388,11 @@ def apply_background(foreground, background) -> typing.Sequence:
     return out
 
 
+def image_has_alpha(image: bpy.types.Image) -> bool:
+    """Returns whether image has an alpha channel."""
+    return image.depth not in (24, 96)
+
+
 class OpCaller:
     """Class that can call operators using the provided context and
     context override keyword args. Uses Context.temp_override when
