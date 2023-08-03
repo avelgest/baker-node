@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import itertools as it
 import random
 import typing
 
@@ -210,6 +211,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.node_tree is not None:
             bpy.data.node_groups.remove(self.node_tree)
 
+    def update(self):
+        # Bug in Blender version 3.5.0 where sockets are re-enabled on
+        # node graph updates. So refresh the enabled state of sockets
+        # after a small delay
+        if bpy.app.version >= (3, 5, 0):
+            self._refresh_sockets_enabled(check_sockets=False)
+
     def _draw_bake_button(self, _context, layout: bpy.types.UILayout) -> None:
         """Draws the node's "Bake" button on layout."""
         row = layout.row(align=True)
@@ -367,7 +375,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         internal_tree.relink_node_tree(self)
         self._refresh_sockets_enabled()
 
-    def _refresh_sockets_enabled(self) -> None:
+    def _refresh_sockets_enabled(self, check_sockets: bool = True) -> None:
         # TODO Move to internal_tree module
         target_type = self.target_type
 
@@ -376,12 +384,25 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         has_alpha_out = has_color_out
         has_preview_out = (target_type == 'VERTEX_MASK')
 
-        internal_tree.check_sockets(self)
-        self.inputs["Color"].enabled = True
-        self.inputs["Alpha In"].enabled = has_alpha_in
-        self.outputs["Baked"].enabled = has_color_out
-        self.outputs["Baked Alpha"].enabled = has_alpha_out
-        self.outputs["Preview"].enabled = has_preview_out
+        if check_sockets:
+            internal_tree.check_sockets(self)
+
+        sockets = {x.name: x for x in it.chain(self.inputs, self.outputs)}
+
+        sockets_enabled = {
+            "Color": True,
+            "Alpha In": has_alpha_in,
+            "Baked": has_color_out,
+            "Baked Alpha": has_alpha_out,
+            "Preview": has_preview_out
+        }
+
+        for name, value in sockets_enabled.items():
+            socket = sockets.get(name)
+            if socket is not None:
+                socket.enabled = value
+                socket.hide = not value
+                socket.hide_value = True
 
     def _refresh_targets(self) -> None:
         internal_tree.refresh_targets(self)
