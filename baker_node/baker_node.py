@@ -99,7 +99,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         description="Which axes to align the plane to",
         items=(('XY', "XY", ""),
                ('XZ', "XZ", ""),
-               ('YZ', "YZ", ""))
+               ('YZ', "YZ", "")),
+        update=lambda self, _: self._invalidate_preview()
     )
 
     # For target_type == VERTEX_MASK
@@ -345,6 +346,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if preview is not None:
             layout.template_icon(preview.icon_id, scale=8)
 
+    def _invalidate_preview(self) -> None:
+        self._last_preview_hash = b""
+
     def preview_ensure(self) -> bpy.types.ImagePreview:
         preview = _preview_collection.get(self.identifier)
         if preview is None:
@@ -499,6 +503,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         try:
             baking.postprocess_baker_node(self, obj)
+        except baking.PostProcessError:
+            pass
         except Exception as e:
             self.on_bake_cancel()
             raise e
