@@ -41,6 +41,50 @@ def get_numpy(should_import: bool = True) -> Optional:
     return None
 
 
+def get_linked_nodes(*sockets: bpy.types.NodeSocket,
+                     node_groups: bool = False) -> set[bpy.types.Node]:
+    """Returns a set of all nodes that are linked (directly or
+    indirectly) to the given input sockets. If node_groups is True
+    then also include the nodes inside any linked group nodes.
+    """
+    if not any(x.is_linked for x in sockets):
+        return set()
+    node_tree = sockets[0].id_data
+    link_cache = {x.to_socket: x for x in node_tree.links}
+
+    linked_nodes = set()
+    for socket in sockets:
+        _get_linked_nodes(socket, link_cache, linked_nodes, node_groups)
+
+    return linked_nodes
+
+
+def _get_linked_nodes(socket: bpy.types.NodeSocket,
+                      link_cache: dict,
+                      output: set[bpy.types.Node],
+                      node_groups: bool = False) -> None:
+    link = link_cache.get(socket)
+    if link is not None:
+        node = link.from_node
+
+        if node_groups and getattr(node, "node_tree", None) is not None:
+            group_outputs = it.chain.from_iterable(
+                [x.inputs for x in get_nodes_by_type(node.node_tree.nodes,
+                                                     "NodeGroupOutput")])
+            socket = next((s for s in group_outputs
+                           if s.name == link.from_socket.name and s.is_linked),
+                          None)
+            if socket is not None:
+                output.update(get_linked_nodes(socket, node_groups=True))
+
+        if link.from_node not in output:
+            output.add(node)
+
+            for node_input in node.inputs:
+                if node_input.is_linked:
+                    _get_linked_nodes(node_input, link_cache, output)
+
+
 def get_node_by_attr(nodes,
                      attr: str,
                      value: Any) -> Optional[bpy.types.Node]:

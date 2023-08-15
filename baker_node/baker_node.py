@@ -480,6 +480,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     def _on_bake_end(self) -> None:
         """Called when the bake is either completed or cancelled."""
+        baking.post_bake_clean_up(self)
 
         if bpy.context.scene.render.engine == 'CYCLES':
             # Image may appear blank while baking in Cycles render view

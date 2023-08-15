@@ -633,3 +633,38 @@ class TestBakerNode(unittest.TestCase):
                 self.assertAlmostEqual(x, 1.0)
             else:
                 self.assertNotAlmostEqual(x, y, delta=0.02)
+
+    def test_5_6_circular_deps(self):
+        """Check that baking still functions when an Image node which
+        uses the same image as the baker node is connected.
+        """
+        img_target = self.img_target
+        baker_node = self._new_baker_node("circular_deps", img_target)
+        baker_node.target_type = 'IMAGE_TEX_UV'
+
+        # Fill the bake target
+        color = [0.7, 0.5, 0.3, 1.0] * (len(img_target.pixels) // 4)
+        img_target.pixels[:] = color
+
+        img_node = self.node_tree.nodes.new("ShaderNodeTexImage")
+        img_node.image = img_target
+
+        add_color = (0.1, 0.1, 0.1, 1.0)
+        add_node = self.node_tree.nodes.new("ShaderNodeMixRGB")
+        add_node.blend_type = 'ADD'
+        add_node.inputs[0].default_value = 1.0
+        add_node.inputs[2].default_value = add_color
+
+        self.node_tree.links.new(add_node.inputs[1], img_node.outputs[0])
+        self.node_tree.links.new(baker_node.inputs[0], add_node.outputs[0])
+
+        num_bpy_imgs = len(bpy.data.images)
+        baker_node.schedule_bake()
+
+        # Check that 0.1 has been added to the RGB components
+        for i, x in enumerate(img_target.pixels):
+            expected = min(color[i] + add_color[i % 4], 1.0)
+            self.assertAlmostEqual(x, expected, delta=0.02)
+
+        # Check that any temporary images have been deleted
+        self.assertEqual(len(bpy.data.images), num_bpy_imgs)

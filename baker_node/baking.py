@@ -49,6 +49,11 @@ _COMBINE_OPS: dict[str, Optional[_CombineOp]] = {
 _PREVIEW_OBJ_NAME = "Baker Node Preview Plane"
 _PREVIEW_MESH_NAME = "Baker Node Preview Plane"
 
+# Name of an image to use as a temporary bake target if needed
+_TMP_TARGET_NAME = ".Temp Bake Target (BKN)"
+# idprop name. If True then a temporary bake target should be used
+_USE_TMP_TARGET_PROP = "use_tmp_bake_target"
+
 
 class _BakerNodeBaker:
     """Bakes a BakerNode's input(s) to it's target. Assumes that the
@@ -78,6 +83,10 @@ class _BakerNodeBaker:
         self._target_tree = baker_node.id_data
 
         self._exit_stack: Optional[contextlib.ExitStack] = None
+
+        # Should have been called after a bake, but call again here
+        # just in case
+        post_bake_clean_up(self.baker_node)
 
     @staticmethod
     def _node_remover(*nodes: bpy.types.Node) -> typing.Callable[[], None]:
@@ -340,7 +349,15 @@ class _BakerNodeBaker:
         # bake target
         target_tree = self._target_tree
 
-        target = self.baker_node.target_image
+        if self.baker_node.get(_USE_TMP_TARGET_PROP):
+            # Bake to a temporary target instead
+            target = self.baker_node.target_image.copy()
+            target.name = _TMP_TARGET_NAME
+            # Any existing temp target should have been deleted
+            assert target.name == _TMP_TARGET_NAME
+
+        else:
+            target = self.baker_node.target_image
         target_node = target_tree.nodes.new("ShaderNodeTexImage")
 
         target_node_name = target_node.name
@@ -380,6 +397,7 @@ class _BakerNodeBaker:
 
         with contextlib.ExitStack() as self._exit_stack:
 
+            self._check_target_circular_deps()
             self._setup_target()
             self._init_ma_output_node()
             self._set_bake_settings()
@@ -414,6 +432,22 @@ class _BakerNodeBaker:
             return 0.2
         bpy.app.timers.register(delayed_stack_close,
                                 first_interval=0.2)
+
+    def _check_target_circular_deps(self) -> None:
+        """Checks if the inputs of the baker node depend on any Image
+        nodes that read from the bake target. Sets _USE_TMP_TARGET_PROP
+        as an idprop on the baker node if it does.
+        """
+        target = self.baker_node.bake_target
+        if not isinstance(target, bpy.types.Image):
+            return
+
+        # Do nothing if no linked nodes use the target image
+        if not any(x for x in utils.get_linked_nodes(*self.baker_node.inputs)
+                   if getattr(x, "image", None) == target):
+            return
+
+        self.baker_node[_USE_TMP_TARGET_PROP] = True
 
     def _set_bake_settings(self) -> None:
         """Sets the settings used for baking on the active scene.
@@ -615,11 +649,58 @@ class _BakerNodePostprocess:
 
         bpy.data.meshes.remove(mesh)
 
+    def _apply_temp_target(self) -> None:
+        # If a temp target was used then this idprop should be set
+        if not self.baker_node.get(_USE_TMP_TARGET_PROP):
+            return
+
+        tmp_target = bpy.data.images[_TMP_TARGET_NAME]
+        true_target = self.baker_node.target_image
+        pixels_len = len(tmp_target.pixels)
+
+        if true_target is None:
+            raise PostProcessError("Baker node has no target")
+        if len(true_target.pixels) != pixels_len:
+            raise PostProcessError(
+                f"Size of temporary target {tmp_target.name} does not equal "
+                f"the size of the baker node's target {true_target.name}")
+
+        np = utils.get_numpy(should_import=False)
+
+        if np is not None:
+            pixel_array = np.zeros(pixels_len, dtype='f')
+        else:
+            pixel_array = array('f', [0]) * pixels_len
+
+        tmp_target.pixels.foreach_get(pixel_array)
+        true_target.pixels.foreach_set(pixel_array)
+        true_target.update()
+
     def postprocess(self) -> None:
+        self._apply_temp_target()
+
         if self.is_preview:
             self._postprocess_preview()
         elif self.baker_node.target_type == 'VERTEX_MASK':
             self._postprocess_vertex_mask()
+
+
+class PostProcessError(RuntimeError):
+    """Error raised when the postprocess step has failed."""
+
+
+def post_bake_clean_up(baker_node) -> None:
+    """Clean-up function that should be called after any successful or
+    cancelled bake (after postprocess). May safely be called more than
+    once. Called automatically before a bake is started.
+    """
+    # Clean-up any idprops added during baking
+    baker_node.pop(_USE_TMP_TARGET_PROP, None)
+
+    # Clean-up
+    tmp_target = bpy.data.images.get(_TMP_TARGET_NAME)
+    if tmp_target is not None:
+        bpy.data.images.remove(tmp_target)
 
 
 def perform_baker_node_bake(baker_node, obj=None,

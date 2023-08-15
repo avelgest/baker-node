@@ -175,3 +175,80 @@ class TestUtils(unittest.TestCase):
                 self._test_apply_background()
         with use_numpy(False):
             self._test_apply_background()
+
+    def test_get_linked_nodes(self):
+        get_linked_nodes = utils.get_linked_nodes
+
+        nodes = self.node_tree.nodes
+        links = self.node_tree.links
+
+        node1 = nodes.new("ShaderNodeCombineXYZ")
+        node2 = nodes.new("ShaderNodeCombineXYZ")
+        node3 = nodes.new("ShaderNodeCombineXYZ")
+        node4 = nodes.new("ShaderNodeCombineXYZ")
+
+        # No linked nodes
+        self.assertEqual(get_linked_nodes(node1.inputs[0]), set())
+
+        # Single linked node
+        links.new(node1.inputs[0], node2.outputs[0])
+        self.assertEqual(get_linked_nodes(node1.inputs[0]), {node2})
+
+        # Indirectly linked node
+        links.new(node2.inputs[0], node3.outputs[0])
+        self.assertEqual(get_linked_nodes(node1.inputs[0]),
+                         {node2, node3})
+
+        # Multiple linked inputs
+        links.new(node2.inputs[1], node4.outputs[0])
+        self.assertEqual(get_linked_nodes(node1.inputs[0]),
+                         {node2, node3, node4})
+
+        # Specifying multiple sockets
+        links.clear()
+        links.new(node1.inputs[0], node2.outputs[0])
+        links.new(node1.inputs[1], node3.outputs[0])
+        self.assertEqual(get_linked_nodes(node1.inputs[0], node1.inputs[1]),
+                         {node2, node3})
+
+        # Node Group
+        links.clear()
+        node_group = bpy.data.node_groups.new("tmp", "ShaderNodeTree")
+        try:
+            expected = self._init_get_linked_nodes_group(node_group)
+            group_node = nodes.new("ShaderNodeGroup")
+            group_node.node_tree = node_group
+            links.new(group_node.inputs[0], node2.outputs[0])
+            links.new(node1.inputs[0], group_node.outputs[0])
+
+            linked = get_linked_nodes(node1.inputs[0], node_groups=True)
+            self.assertEqual(linked, {group_node, node2} | expected[0])
+        finally:
+            bpy.data.node_groups.remove(node_group)
+
+    def _init_get_linked_nodes_group(self, node_group
+                                     ) -> list[set[bpy.types.Node]]:
+        """Initialize the node group used for testing get_linked_nodes
+        node_groups option. Returns a list of the set of nodes linked to
+        each input on the Group Output node.
+        """
+        nodes = node_group.nodes
+        links = node_group.links
+
+        node_group.inputs.new("NodeSocketFloat", "in1")
+        node_group.outputs.new("NodeSocketColor", "out1")
+        node_group.outputs.new("NodeSocketColor", "out2")
+
+        nodes.new("NodeGroupOutput")  # Test with unused Group Output
+        group_out = nodes.new("NodeGroupOutput")
+        group_in = nodes.new("NodeGroupInput")
+        node1 = nodes.new("ShaderNodeCombineXYZ")
+        node2 = nodes.new("ShaderNodeCombineXYZ")
+
+        links.new(group_out.inputs[0], node1.outputs[0])
+        links.new(group_out.inputs[1], node2.outputs[0])
+        links.new(node1.inputs[0], group_in.outputs[0])
+        links.new(node2.inputs[0], group_in.outputs[0])
+
+        return [utils.get_linked_nodes(group_out.inputs[0]),
+                utils.get_linked_nodes(group_out.inputs[1])]
