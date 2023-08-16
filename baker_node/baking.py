@@ -443,7 +443,9 @@ class _BakerNodeBaker:
             return
 
         # Do nothing if no linked nodes use the target image
-        if not any(x for x in utils.get_linked_nodes(*self.baker_node.inputs)
+        linked_nodes = utils.get_linked_nodes(*self.baker_node.inputs,
+                                              node_groups=True)
+        if not any(x for x in linked_nodes
                    if getattr(x, "image", None) == target):
             return
 

@@ -503,8 +503,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         try:
             baking.postprocess_baker_node(self, obj)
-        except baking.PostProcessError:
-            pass
+        # TODO Show warning in UI instead of raising when catching
+        # PostProcessError
         except Exception as e:
             self.on_bake_cancel()
             raise e
