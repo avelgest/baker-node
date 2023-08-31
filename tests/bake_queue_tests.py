@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import functools
 import unittest
+
+from typing import Any, Callable
+
 import bpy
 
 from ..baker_node import bake_queue as bake_queue_module
@@ -10,6 +14,24 @@ from ..baker_node.preferences import get_prefs
 
 
 supports_bg_baking = get_prefs().supports_background_baking
+
+
+def _set_pref(prop_name: str, value: Any) -> Callable:
+    """Decorator that sets a property of the add-on preferences before
+    the function call and restores it afterwards.
+    """
+    def decorator(func):
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            prefs = get_prefs()
+            old_value = getattr(prefs, prop_name)
+            setattr(prefs, prop_name, value)
+            ret = func(*args, **kwargs)
+            setattr(prefs, prop_name, old_value)
+            return ret
+        return wrapper
+    return decorator
 
 
 class BakerNodeMock(BakerNode):
@@ -145,6 +167,7 @@ class TestBakeQueue(unittest.TestCase):
         # Job should be run immediately and have been removed
         self.assertEqual(len(bake_queue.jobs), 0)
 
+    @_set_pref("preview_background_bake", True)
     @unittest.skipUnless(supports_bg_baking, "Background baking not supported")
     def test_2_3_add_preview_job_async(self):
         bake_queue = self.bake_queue

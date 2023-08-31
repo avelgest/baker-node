@@ -308,7 +308,12 @@ class BakeQueue(bpy.types.PropertyGroup):
         immediate is True or background baking is not suppoted then the
         job will be run immediately.
         """
-        in_background = self.bake_in_background and not immediate
+        if immediate:
+            in_background = False
+        elif is_preview:
+            in_background = self.bake_previews_in_background
+        else:
+            in_background = self.bake_in_background
 
         # Do nothing if baker_node already has a queued job
         if is_preview:
@@ -419,6 +424,10 @@ class BakeQueue(bpy.types.PropertyGroup):
     @property
     def bake_in_background(self) -> bool:
         return get_prefs().background_baking
+
+    @property
+    def bake_previews_in_background(self) -> bool:
+        return get_prefs().preview_background_bake
 
     @property
     def job_in_progress(self) -> bool:

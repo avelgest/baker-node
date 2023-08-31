@@ -97,6 +97,13 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         update=lambda self, _: self._preview_update_interval_update()
     )
 
+    preview_background_bake: BoolProperty(
+        name="Bake Previews in Background",
+        description="Bake previews in the background if possible",
+        default=supports_background_baking,
+        update=lambda self, _: self._preview_background_bake_update()
+    )
+
     use_numpy: BoolProperty(
         name="Use NumPy",
         description="Allows the add-on to use NumPy for certain operations",
@@ -114,6 +121,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow = layout.column_flow(columns=2)
         flow.prop(self, "preview_size")
         flow.prop(self, "preview_update_interval")
+        flow.prop(self, "preview_background_bake")
         layout.separator()
 
         col = layout.column(align=True)
@@ -139,6 +147,11 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         # Baking in background only available for Blender 3.3+
         if self.background_baking and not self.supports_background_baking:
             self.background_baking = False
+
+    def _preview_background_bake_update(self):
+        if (self.preview_background_bake
+                and not self.supports_background_baking):
+            self.preview_background_bake = False
 
     def _preview_update_interval_update(self):
         value = self.preview_update_interval

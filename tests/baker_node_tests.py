@@ -38,6 +38,7 @@ class TestBakerNode(unittest.TestCase):
     # Use these values for certain add-on preferences
     _override_prefs = {
         "background_baking": False,
+        "preview_background_bake": False,
         "preview_size": 4,
         "use_numpy": False
     }
