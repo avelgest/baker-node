@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import itertools as it
 import typing
 
 from typing import Optional
@@ -7,6 +8,8 @@ from typing import Optional
 import bpy
 
 from bpy.types import Operator
+
+from . import utils
 
 from .baker_node import BakerNode
 from .preferences import get_prefs
@@ -29,6 +32,14 @@ def _baker_node_selected(context) -> bool:
             and any(x.bl_idname == BakerNode.bl_idname for x in selected))
 
 
+def _get_active_baker_node(context) -> Optional[BakerNode]:
+    """Returns the active node if it is a baker node or None otherwise."""
+    active = getattr(context, "active_node", None)
+    if active is not None and active.bl_idname == BakerNode.bl_idname:
+        return active
+    return None
+
+
 def _get_active_or_selected_baker_nodes(context) -> typing.Set[BakerNode]:
     selected = getattr(context, "selected_nodes", None) or ()
     baker_nodes = set(selected)
@@ -38,6 +49,12 @@ def _get_active_or_selected_baker_nodes(context) -> typing.Set[BakerNode]:
         baker_nodes.add(active)
 
     return baker_nodes
+
+
+def _hide_unlinked_sockets(node: bpy.types.Node) -> None:
+    for socket in it.chain(node.inputs, node.outputs):
+        if not socket.is_linked:
+            socket.hide = True
 
 
 class BakerNodeButtonBase:
@@ -223,11 +240,90 @@ class BKN_OT_refresh_preview(BakerNodeButtonBase, Operator):
         return {'FINISHED'}
 
 
+class BKN_OT_add_masking_setup(Operator):
+    bl_idname = "node.bkn_masking_setup"
+    bl_label = "Add Masking Setup"
+    bl_description = ("Adds nodes that function as a mask for this Baker. "
+                      "Masked areas (white on the mask) will not be affected "
+                      "by baking")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    _SUPPORTED_TARGETS = ('IMAGE_TEX_UV', 'COLOR_ATTRIBUTE')
+
+    @classmethod
+    def poll(cls, context):
+        baker_node = _get_active_baker_node(context)
+        if baker_node is None:
+            return False
+        if baker_node.target_type not in cls._SUPPORTED_TARGETS:
+            cls.poll_message_set("Only Image (UV) and Color Attribute are "
+                                 "supported for masking")
+            return False
+        return True
+
+    def execute(self, context):
+        baker_node = context.active_node
+        node_tree = baker_node.id_data
+        target_type = baker_node.target_type
+
+        color_socket = baker_node.inputs[0]
+        orig_linked = (None if not color_socket.is_linked
+                       else color_socket.links[0].from_socket)
+
+        mix_node = node_tree.nodes.new("ShaderNodeMixRGB")
+        mix_node.name = f"{baker_node.identifier}.masking.mix"
+        mix_node.label = "Mask Mix"
+        mix_node.hide = True
+        mix_node.width = 100
+        utils.offset_node_from(mix_node, baker_node, -150, -175)
+
+        if (bpy.app.version < (3, 6) and target_type == 'IMAGE_TEX_UV'):
+            # Baking group circular deps to images doesn't work in some
+            # older Blender versions so fallback on an Image Node.
+            # TODO Check if necessary in Blender 3.4 / 3.5
+            group_node = node_tree.nodes.new("ShaderNodeTexImage")
+            group_node.image = baker_node.target_image
+        else:
+            group_node = node_tree.nodes.new("ShaderNodeGroup")
+            group_node.node_tree = baker_node.node_tree
+
+        group_node.name = f"{baker_node.identifier}.masking.baked"
+        group_node.label = "Baked"
+        group_node.hide = True
+        group_node.width = 100
+
+        utils.offset_node_from(group_node, mix_node, -150, -50)
+
+        mask_reroute = node_tree.nodes.new("NodeReroute")
+        mask_reroute.name = f"{baker_node.identifier}.masking.mask"
+        mask_reroute.label = "Mask"
+        utils.offset_node_from(mask_reroute, mix_node, -175, 150)
+
+        color_reroute = node_tree.nodes.new("NodeReroute")
+        color_reroute.name = f"{baker_node.identifier}.masking.color"
+        color_reroute.label = "Color"
+        utils.offset_node_from(color_reroute, mix_node, -175, 0)
+
+        links = node_tree.links
+        links.new(mix_node.outputs[0], color_socket)
+        links.new(mix_node.inputs[0], mask_reroute.outputs[0])
+        links.new(mix_node.inputs[1], color_reroute.outputs[0])
+        links.new(mix_node.inputs[2], group_node.outputs[0])
+
+        if orig_linked is not None:
+            links.new(color_reroute.inputs[0], orig_linked)
+
+        _hide_unlinked_sockets(group_node)
+        return {'FINISHED'}
+
+
 classes = (BKN_OT_bake_button,
            BKN_OT_cancel_button,
            BKN_OT_bake_nodes,
            BKN_OT_mute_all_toggle,
            BKN_OT_to_builtin,
-           BKN_OT_refresh_preview)
+           BKN_OT_refresh_preview,
+           BKN_OT_add_masking_setup,
+           )
 
 register, unregister = bpy.utils.register_classes_factory(classes)

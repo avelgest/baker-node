@@ -905,6 +905,9 @@ def bkn_node_context_menu_func(self, context):
         if active_node.preview_visible and not active_node.mute:
             layout.operator("node.bkn_refresh_preview")
 
+        layout.separator()
+        layout.operator("node.bkn_masking_setup")
+
 
 class BakerNodeSettingsPanel(bpy.types.Panel):
     bl_idname = "BKN_PT_baker_node_settings"
