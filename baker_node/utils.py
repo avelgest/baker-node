@@ -62,7 +62,7 @@ def get_linked_nodes(*sockets: bpy.types.NodeSocket,
 def _get_linked_nodes(socket: bpy.types.NodeSocket,
                       link_cache: dict,
                       output: set[bpy.types.Node],
-                      node_groups: bool = False) -> None:
+                      node_groups: bool) -> None:
     link = link_cache.get(socket)
     if link is not None:
         node = link.from_node
@@ -82,7 +82,8 @@ def _get_linked_nodes(socket: bpy.types.NodeSocket,
 
             for node_input in node.inputs:
                 if node_input.is_linked:
-                    _get_linked_nodes(node_input, link_cache, output)
+                    _get_linked_nodes(node_input, link_cache,
+                                      output, node_groups)
 
 
 def get_node_by_attr(nodes,
@@ -311,7 +312,11 @@ def node_offset(node: bpy.types.Node, x: float = 0, y: float = 0) -> Vector:
 
 def offset_node_from(node: bpy.types.Node, offset_from: bpy.types.Node,
                      x: float = 0, y: float = 0) -> None:
-    """Offsets node from other node offset_from by x and y."""
+    """Offsets node from other node offset_from by x and y.
+    Also sets node's parent to be the same as offset_from's.
+    """
+    if node.parent != offset_from.parent:
+        node.parent = offset_from.parent
     other_node_loc = offset_from.location
     node.location = (other_node_loc.x + x, other_node_loc.y + y)
 
