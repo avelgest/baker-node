@@ -331,7 +331,8 @@ class BakeQueue(bpy.types.PropertyGroup):
 
         if not in_background:
             # Move the job to the front of the queue and run it
-            self.jobs.move(len(self.jobs)-1, 0)
+            if not self.job_in_progress:
+                self.jobs.move(len(self.jobs)-1, 0)
             self.try_run_next()
 
         elif not self.job_in_progress:
