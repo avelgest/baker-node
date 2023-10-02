@@ -136,7 +136,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     # samples defaults to get_prefs().default_samples
     samples: IntProperty(
         name="Bake Samples",
-        description="The number of samples to use for baking",
+        description="The number of samples to use for baking. The default "
+                    "value can be changed in the add-on preferences",
         min=1, soft_max=1024
     )
 

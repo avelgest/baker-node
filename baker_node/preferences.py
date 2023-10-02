@@ -74,7 +74,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     default_samples: IntProperty(
         name="Default Samples",
         description="Default number of samples to use for baking",
-        default=4,
+        default=16,
         min=0, soft_max=1024
     )
 
@@ -100,7 +100,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     preview_background_bake: BoolProperty(
         name="Bake Previews in Background",
         description="Bake previews in the background if possible",
-        default=supports_background_baking,
+        default=False,
         update=lambda self, _: self._preview_background_bake_update()
     )
 
