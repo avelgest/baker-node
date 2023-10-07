@@ -204,6 +204,30 @@ class TestBakeQueue(unittest.TestCase):
         # Job should be run immediately and have been removed
         self.assertFalse(bake_queue.jobs)
 
+    def test_2_5_add_job_frame_async(self):
+        bake_queue = self.bake_queue
+        baker_node = self.baker_node
+        frame = 2
+
+        self.assertFalse(bake_queue.has_baker_node_job(baker_node, frame))
+
+        bake_queue.add_job_from_baker_node(baker_node, frame=frame)
+        self.assertEqual(len(bake_queue.jobs), 1)
+        self.assertEqual(bake_queue.jobs[0].frame, frame)
+
+        self.assertTrue(bake_queue.has_baker_node_job(baker_node))
+        self.assertTrue(bake_queue.has_baker_node_job(baker_node, frame))
+        self.assertEqual(bake_queue.count_baker_node_jobs(baker_node), 1)
+
+        bake_queue.add_job_from_baker_node(baker_node, frame=frame+1)
+        self.assertEqual(len(bake_queue.jobs), 2)
+        self.assertEqual(bake_queue.jobs[1].frame, frame+1)
+        self.assertEqual(bake_queue.count_baker_node_jobs(baker_node), 2)
+
+        # N.B. The active job should remain when cancelling
+        bake_queue.cancel_baker_node_jobs(baker_node)
+        self.assertEqual(len(bake_queue.jobs), 1)
+
     def test_3_clear(self):
         self.bake_queue.add_job_from_baker_node(self.baker_node)
         self.bake_queue.clear()

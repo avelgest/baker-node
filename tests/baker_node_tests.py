@@ -2,6 +2,8 @@
 
 import contextlib
 import itertools as it
+import os
+import tempfile
 import typing
 import unittest
 import warnings
@@ -69,7 +71,7 @@ class TestBakerNode(unittest.TestCase):
         cls._old_prefs = {k: getattr(prefs, k) for k in cls._override_prefs}
 
         # Image to bake to
-        cls.img_target = bpy.data.images.new("tst_img", 4, 4, alpha=True,
+        cls.img_target = bpy.data.images.new("test_img", 4, 4, alpha=True,
                                              is_data=True, float_buffer=True)
 
         # Color Attributes (On newer blender versions)
@@ -94,6 +96,9 @@ class TestBakerNode(unittest.TestCase):
         prefs = preferences.get_prefs()
         for k, v in self._override_prefs.items():
             setattr(prefs, k, v)
+
+        self.img_target.source = 'GENERATED'
+        self.img_target.colorspace_settings.name = 'Non-Color'
 
     def tearDown(self):
         self.node_tree.nodes.clear()
@@ -433,6 +438,74 @@ class TestBakerNode(unittest.TestCase):
         baker_node.schedule_bake()
 
         self._assert_color_attr_equal(target_attr, (0.5, 0.5, 0.5, 0.7))
+
+    def test_3_7_image_sequence(self):
+        folder = tempfile.TemporaryDirectory()
+        colorspace = self.img_target.colorspace_settings.name
+
+        frame_start = 1
+        frame_end = 2
+
+        start_value = 0.25
+        end_value = 0.75
+
+        generic_path = os.path.join(folder.name, "target-{:03}.png")
+
+        baker_node = self._new_baker_node("image_sequence_test")
+
+        color_node = self.node_tree.nodes.new("ShaderNodeRGB")
+        color_out = color_node.outputs[0]
+
+        # Set the keyframes
+        color_out.default_value = (end_value,) * 3 + (1.0,)
+        color_out.keyframe_insert("default_value", frame=frame_end)
+        color_out.default_value = (start_value,) * 3 + (1.0,)
+        color_out.keyframe_insert("default_value", frame=frame_start)
+
+        self.node_tree.links.new(baker_node.inputs[0], color_out)
+
+        self.img_target.source = 'SEQUENCE'
+        self.img_target.filepath_raw = generic_path.format(1)
+
+        bpy.context.scene.frame_start = frame_start
+        bpy.context.scene.frame_end = frame_end
+
+        self._set_target(baker_node, self.img_target)
+        self.assertTrue(baker_node.is_target_image_seq)
+
+        baker_node.schedule_bake()
+
+        # Check that all frames were baked
+        for frame in range(frame_start, frame_end + 1):
+            filepath = generic_path.format(frame)
+            self.assertTrue(os.path.isfile(filepath), f"{filepath} not found")
+
+        # Check that the start and end frames have the correct colors
+        for frame, value in ((frame_start, start_value),
+                             (frame_end, end_value)):
+            # Doesn't seem to be a way to load pixel data of image
+            # sequences in headless mode so load images individually.
+            img = bpy.data.images.load(generic_path.format(frame))
+            img.colorspace_settings.name = colorspace
+
+            try:
+                for x in self._get_pixels_rgb(img):
+                    self.assertAlmostEqual(x, value, delta=0.01)
+            finally:
+                bpy.data.images.remove(img)
+
+        # Check that no files beyond the frame range were created
+        for frame in (frame_start - 1, frame_end + 1):
+            self.assertFalse(os.path.exists(generic_path.format(frame)))
+
+        ScheduleBakeError = BakerNode.ScheduleBakeError
+        self.img_target.filepath = ""
+        self.assertRaises(ScheduleBakeError, baker_node.schedule_bake)
+
+        self.img_target.filepath = os.path.join(folder.name, "unsuffixed.png")
+        self.assertRaises(ScheduleBakeError, baker_node.schedule_bake)
+
+        folder.cleanup()
 
     def _test_greyscale_method(self,
                                baker_node: BakerNode,

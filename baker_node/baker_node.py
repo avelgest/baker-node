@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import itertools as it
+import os
 import random
 import typing
 
@@ -436,7 +437,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                        else "No bake target set")
                 raise self.ScheduleBakeError(msg)
 
-        bake_queue.add_bake_job(self)
+        if self.is_target_image_seq:
+            self._schedule_image_seq_bake()
+        else:
+            bake_queue.add_bake_job(self)
 
         self._bake_synced_nodes()
 
@@ -450,10 +454,42 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 and not bake_queue.has_scheduled_preview_job(self)):
             bake_queue.add_bake_job(self, is_preview=True)
 
+    def _schedule_image_seq_bake(self) -> None:
+        """Schedule this node for baking to an image sequence. Adds
+        multiple jobs to the bake queue (1 per frame).
+        """
+        if not self.is_target_image_seq:
+            raise ValueError("Target is not an image sequence")
+
+        target_image = self.target_image
+        filepath = target_image.filepath_raw
+        if not filepath:
+            raise self.ScheduleBakeError(
+                f"Image sequence {target_image.name} has no filepath")
+        try:
+            # Try to make a filepath string for the first frame.
+            utils.sequence_img_path(target_image, 1)
+        except ValueError as e:
+            raise self.ScheduleBakeError(
+                f"Image sequence {target_image.name} has an invalid filepath"
+                ) from e
+
+        dir_name = os.path.dirname(filepath)
+        if dir_name and not os.path.isdir(dir_name):
+            raise self.ScheduleBakeError(
+                f"Invalid filepath for image sequence {target_image.name}:"
+                f"{dir_name} is not a directory")
+
+        # TODO Use ImageUser prop to set frame range
+        scene = bpy.context.scene
+        for x in range(scene.frame_start, min(scene.frame_end + 1, 100)):
+            bake_queue.add_bake_job(self, frame=x)
+
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
                      background: bool = True,
-                     is_preview: bool = False) -> None:
+                     is_preview: bool = False,
+                     frame: Optional[bool] = None) -> None:
         """Bake this baker node. This bypasses the BakeQueue and
         attempts the bake immediately. If background is True then the
         bake will run in the background (if supported).
@@ -465,9 +501,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         try:
             baking.perform_baker_node_bake(self, obj,
                                            immediate=not background,
-                                           is_preview=is_preview)
+                                           is_preview=is_preview,
+                                           frame=frame)
         except Exception as e:
-            self.on_bake_cancel()
+            self.cancel_bake()
             raise e
 
         if not background:
@@ -499,6 +536,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             baking.postprocess_baker_node(self, obj, is_preview=True)
             return
 
+        # self.bake_in_progress should still be True at this point since
+        # the bake queue has not yet removed the job.
         if not self.bake_in_progress:
             return
 
@@ -507,8 +546,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         # TODO Show warning in UI instead of raising when catching
         # PostProcessError
         except Exception as e:
-            self.on_bake_cancel()
+            self.cancel_bake()
             raise e
+
+        # If there is only one job left then this job is for the final
+        # frame. So load the new image sequence frames from disk.
+        if (self.is_target_image_seq
+                and bake_queue.count_baker_node_jobs(self) == 1):
+            self.target_image.reload()
+            bpy.context.scene.frame_set(bpy.context.scene.frame_current)
 
         self._on_bake_end()
 
@@ -739,6 +785,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.target_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
             return 'VERTEX_COLORS'
         return 'IMAGE_TEXTURES'
+
+    @property
+    def is_target_image_seq(self) -> bool:
+        """Returns True if the bake_target is an image sequence."""
+        return getattr(self.bake_target, "source", "") == 'SEQUENCE'
 
     @property
     def last_bake_hash(self) -> bytes:

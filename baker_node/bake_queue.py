@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from typing import Optional
+from typing import Optional, Union
 
 import bpy
 
@@ -36,6 +36,11 @@ class BakeJobError(RuntimeError):
     """Error raised when a bake job could not start (e.g if the
     BakerNode could not be found).
     """
+
+
+# Value passed to has_scheduled_job etc as the frame parameter to
+# indicate the frame property of BakeQueueJob can be ignored.
+ANY_FRAME = 'ANY_FRAME'
 
 
 class BakeQueueJob(bpy.types.PropertyGroup):
@@ -100,17 +105,21 @@ class BakeQueueJob(bpy.types.PropertyGroup):
 
     def init_from_baker_node(self, baker_node,
                              background: bool = False,
-                             is_preview: bool = False) -> None:
+                             is_preview: bool = False,
+                             frame: Optional[int] = None) -> None:
         """Initialize this job from a BakerNode. If background is True
         then the bake should run in the background when performed.
         If is_preview is True then this job will bake a preview instead
         of a normal bake.
+        When baking to an image sequence frame should be the frame
+        number that this job should bake. Otherwise it shoud be None.
         """
         self.node_name = baker_node.name
         self.node_id = baker_node.identifier
         self.bake_object = baker_node.bake_object
         self.background = background
         self.is_preview = is_preview
+        self.frame = frame
 
         # Enables using 'in' keyword to search a PropertyCollection
         # using a baker's identifier property
@@ -174,9 +183,21 @@ class BakeQueueJob(bpy.types.PropertyGroup):
 
         baker_node.perform_bake(obj=self.bake_object,
                                 background=self.background,
-                                is_preview=self.is_preview)
+                                is_preview=self.is_preview,
+                                frame=self.frame)
 
         self.in_progress = self.background
+
+    @property
+    def frame(self) -> Optional[int]:
+        return self.get("frame", None)
+
+    @frame.setter
+    def frame(self, value: Optional[int]):
+        if value is None:
+            self.pop("frame", None)
+        else:
+            self["frame"] = int(value)
 
     @property
     def node_tree(self) -> Optional[bpy.types.ShaderNodeTree]:
@@ -303,7 +324,9 @@ class BakeQueue(bpy.types.PropertyGroup):
             self.job_complete(job)
 
     def add_job_from_baker_node(self, baker_node,
-                                immediate=False, is_preview=False) -> None:
+                                immediate: bool = False,
+                                is_preview: bool = False,
+                                frame: Optional[int] = None) -> None:
         """Adds a BakeQueueJob to the queue from a BakerNode. If
         immediate is True or background baking is not suppoted then the
         job will be run immediately.
@@ -319,12 +342,13 @@ class BakeQueue(bpy.types.PropertyGroup):
         if is_preview:
             if self.has_baker_node_preview_job(baker_node):
                 return
-        elif self.has_baker_node_job(baker_node):
+        elif self.has_baker_node_job(baker_node, frame=frame):
             return
 
         job = self.jobs.add()
         try:
-            job.init_from_baker_node(baker_node, in_background, is_preview)
+            job.init_from_baker_node(baker_node, in_background,
+                                     is_preview, frame)
         except Exception as e:
             self.jobs.remove(len(self.jobs)-1)
             raise e
@@ -365,7 +389,22 @@ class BakeQueue(bpy.types.PropertyGroup):
             job.on_cancel()
         self.jobs.clear()
 
-    def has_baker_node_job(self, baker_node) -> bool:
+    def count_baker_node_jobs(self, baker_node, preview: bool = False) -> int:
+        """Returns the number of jobs baker_node has in the queue.
+        When preview is True only preview jobs are counted and only
+        non-preview jobs are counted when False.
+        """
+        identifier = baker_node.identifier
+        preview = bool(preview)
+
+        count = 0
+        for job in self.jobs:
+            if job.identifier == identifier and job.is_preview == preview:
+                count += 1
+        return count
+
+    def has_baker_node_job(self, baker_node,
+                           frame: Union[None, int, str] = ANY_FRAME) -> bool:
         """Returns whether baker_node has any sceduled or active jobs
         in this BakeQueue (does not include preview jobs).
         """
@@ -373,9 +412,12 @@ class BakeQueue(bpy.types.PropertyGroup):
         job = self.jobs.get(identifier)
         if job is None:
             return False
-        if job.is_preview:
+
+        any_frame = (frame == ANY_FRAME)
+        if job.is_preview or (not any_frame and job.frame != frame):
             return any(x for x in self.jobs
-                       if x.identifier == identifier and not x.is_preview)
+                       if x.identifier == identifier and not x.is_preview
+                       and (any_frame or x.frame == frame))
         return True
 
     def has_baker_node_preview_job(self, baker_node) -> bool:
@@ -436,16 +478,26 @@ class BakeQueue(bpy.types.PropertyGroup):
         return self.active_job is not None
 
 
-def add_bake_job(baker_node, is_preview: bool = False) -> None:
+def add_bake_job(baker_node,
+                 is_preview: bool = False,
+                 frame: Optional[int] = None) -> None:
     """Adds a job to the bake queue from a BakerNode instance."""
     bake_queue = utils.get_bake_queue()
-    bake_queue.add_job_from_baker_node(baker_node, is_preview=is_preview)
+    bake_queue.add_job_from_baker_node(baker_node,
+                                       is_preview=is_preview, frame=frame)
 
 
 def cancel_bake_jobs(baker_node) -> None:
     """Cancels all jobs in the bake queue from baker_node."""
     bake_queue = utils.get_bake_queue()
     bake_queue.cancel_baker_node_jobs(baker_node)
+
+
+def count_baker_node_jobs(baker_node, preview: bool = False) -> int:
+    """Counts the jobs baker node has in the bake queue.
+    See BakeQueue.count_baker_node_jobs
+    """
+    return utils.get_bake_queue().count_baker_node_jobs(baker_node, preview)
 
 
 def has_scheduled_job(baker_node) -> bool:

@@ -53,6 +53,8 @@ _PREVIEW_MESH_NAME = "Baker Node Preview Plane"
 _TMP_TARGET_NAME = ".Temp Bake Target (BKN)"
 # idprop name. If True then a temporary bake target should be used
 _USE_TMP_TARGET_PROP = "use_tmp_bake_target"
+# idprop name. Set when baking a specific frame in an image sequence
+_IMAGE_SEQ_FRAME_PROP = "_baking_image_seq_frame"
 
 
 class _BakerNodeBaker:
@@ -68,13 +70,17 @@ class _BakerNodeBaker:
     # an external Material Output node.
     OUT_SOCKET_NAME = "Bake Shader"
 
-    def __init__(self, baker_node, obj=None, is_preview=False):
+    def __init__(self, baker_node,
+                 obj: Optional[bpy.types.Object] = None,
+                 is_preview: bool = False,
+                 frame: Optional[int] = None):
         self.baker_node = baker_node
 
         if baker_node.node_tree is None:
             raise ValueError("baker_node has no node_tree")
 
         self.is_preview = is_preview
+        self.frame = frame
 
         # The object to use when baking
         self._object = baker_node.bake_object if obj is None else obj
@@ -353,6 +359,7 @@ class _BakerNodeBaker:
             # Bake to a temporary target instead
             target = self.baker_node.target_image.copy()
             target.name = _TMP_TARGET_NAME
+            target.source = 'GENERATED'
             # Any existing temp target should have been deleted
             assert target.name == _TMP_TARGET_NAME
 
@@ -398,6 +405,7 @@ class _BakerNodeBaker:
         with contextlib.ExitStack() as self._exit_stack:
 
             self._check_target_circular_deps()
+            self._check_target_image_seq()
             self._setup_target()
             self._init_ma_output_node()
             self._set_bake_settings()
@@ -451,6 +459,23 @@ class _BakerNodeBaker:
 
         self.baker_node[_USE_TMP_TARGET_PROP] = True
 
+    def _check_target_image_seq(self) -> None:
+        """Checks if the target is an image sequence. Sets
+        _USE_TMP_TARGET_PROP and _IMAGE_SEQ_FRAME_PROP on the node if
+        it is.
+        """
+        # If the target is an image sequence bake to a temporary target
+        # then save that target to disk as the specified frame of the
+        # sequence. Saving the image is performed in postprocessing.
+
+        baker_node = self.baker_node
+        if self.frame is not None:
+            if not baker_node.is_target_image_seq:
+                raise ValueError("Target is not an image sequence")
+
+            baker_node[_USE_TMP_TARGET_PROP] = True
+            baker_node[_IMAGE_SEQ_FRAME_PROP] = self.frame
+
     def _set_bake_settings(self) -> None:
         """Sets the settings used for baking on the active scene.
         The Changes made will automatically be reverted when
@@ -489,6 +514,22 @@ class _BakerNodeBaker:
         bake_props.target = self._cycles_target_enum
         bake_props.use_clear = True
         # bake_props.use_selected_to_active = False  # TODO ???
+
+        if self.frame is not None:
+            self._set_frame()
+
+    def _set_frame(self) -> None:
+        """Sets the scene's frame (used when baking to image sequences)."""
+        scene = bpy.context.scene
+        if self.frame is None or scene.frame_current == self.frame:
+            return
+
+        old_frame = scene.frame_current
+        scene.frame_set(self.frame)
+
+        self._exit_stack.callback(
+            lambda: bpy.context.scene.frame_set(old_frame)
+        )
 
     def _set_bake_type_settings(self,
                                 cycles_props: utils.TempChanges,
@@ -656,6 +697,10 @@ class _BakerNodePostprocess:
         if not self.baker_node.get(_USE_TMP_TARGET_PROP):
             return
 
+        if _IMAGE_SEQ_FRAME_PROP in self.baker_node:
+            self._apply_temp_target_frame()
+            return
+
         tmp_target = bpy.data.images[_TMP_TARGET_NAME]
         true_target = self.baker_node.target_image
         pixels_len = len(tmp_target.pixels)
@@ -678,6 +723,19 @@ class _BakerNodePostprocess:
         true_target.pixels.foreach_set(pixel_array)
         true_target.update()
 
+    def _apply_temp_target_frame(self) -> None:
+        """Saves the temp target image to disk (only used when baking
+        to image sequences).
+        """
+        tmp_target = bpy.data.images[_TMP_TARGET_NAME]
+        frame = self.baker_node[_IMAGE_SEQ_FRAME_PROP]
+
+        if not self.baker_node.is_target_image_seq:
+            raise PostProcessError("Baker target is not an image sequence")
+
+        filepath = utils.sequence_img_path(self.baker_node.target_image, frame)
+        utils.save_image(tmp_target, filepath)
+
     def postprocess(self) -> None:
         self._apply_temp_target()
 
@@ -698,6 +756,7 @@ def post_bake_clean_up(baker_node) -> None:
     """
     # Clean-up any idprops added during baking
     baker_node.pop(_USE_TMP_TARGET_PROP, None)
+    baker_node.pop(_IMAGE_SEQ_FRAME_PROP, None)
 
     # Clean-up
     tmp_target = bpy.data.images.get(_TMP_TARGET_NAME)
@@ -705,12 +764,16 @@ def post_bake_clean_up(baker_node) -> None:
         bpy.data.images.remove(tmp_target)
 
 
-def perform_baker_node_bake(baker_node, obj=None,
-                            immediate=False, is_preview=False) -> None:
+def perform_baker_node_bake(baker_node,
+                            obj: Optional[bpy.types.Object] = None,
+                            immediate: bool = False,
+                            is_preview: bool = False,
+                            frame: Optional[int] = None) -> None:
     """Bakes a baker node according to its properties.
     Assumes that no bake job is currently running.
     """
-    baker = _BakerNodeBaker(baker_node, obj=obj, is_preview=is_preview)
+    baker = _BakerNodeBaker(baker_node, obj=obj,
+                            is_preview=is_preview, frame=frame)
 
     baker.bake(immediate=immediate)
 

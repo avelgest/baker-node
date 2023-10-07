@@ -67,6 +67,7 @@ class _TreeBuilder:
         baked_img_node = nodes.new("ShaderNodeTexImage")
         baked_img_node.name = NodeNames.baked_img
         baked_img_node.image = target_image
+        baked_img_node.image_user.use_auto_refresh = True
         baked_img_node.location.y = 400
 
         uv_map_node = nodes.new("ShaderNodeUVMap")

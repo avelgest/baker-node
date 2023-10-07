@@ -252,3 +252,41 @@ class TestUtils(unittest.TestCase):
 
         return [utils.get_linked_nodes(group_out.inputs[0]),
                 utils.get_linked_nodes(group_out.inputs[1])]
+
+    def test_sequence_img_path(self):
+        sequence_img_path = utils.sequence_img_path
+        image = bpy.data.images.new("test_image", 32, 32)
+        try:
+            image.source = 'GENERATED'
+            self.assertRaises(ValueError, lambda: sequence_img_path(image, 1))
+
+            image.source = 'SEQUENCE'
+            image.filepath_raw = "image.001.png"
+            self.assertEqual(sequence_img_path(image, 2), "image.002.png")
+
+            image.filepath_raw = "image.001.png"
+            self.assertEqual(sequence_img_path(image, 123), "image.123.png")
+
+            image.filepath_raw = "path/to/image.001.png"
+            self.assertEqual(sequence_img_path(image, 2),
+                             "path/to/image.002.png")
+
+            image.filepath_raw = "image.003.001.png"
+            self.assertEqual(sequence_img_path(image, 2), "image.003.002.png")
+
+            image.filepath_raw = "001.png"
+            self.assertEqual(sequence_img_path(image, 2), "002.png")
+
+            image.filepath_raw = "image.XXX.png"
+            self.assertEqual(sequence_img_path(image, 2), "image.002.png")
+
+            # N.B. Won't raise if basename ends with x e.g. "no_suffix.png"
+            image.filepath_raw = "unsuffixed.png"
+            self.assertRaises(ValueError, lambda: sequence_img_path(image, 1))
+
+            for sep in ("_", "-", ""):
+                image.filepath_raw = f"image{sep}001.png"
+                self.assertEqual(sequence_img_path(image, 2),
+                                 f"image{sep}002.png")
+        finally:
+            bpy.data.images.remove(image)

@@ -3,6 +3,7 @@
 import functools
 import importlib
 import itertools as it
+import os
 import types
 import typing
 import sys
@@ -319,6 +320,49 @@ def offset_node_from(node: bpy.types.Node, offset_from: bpy.types.Node,
         node.parent = offset_from.parent
     other_node_loc = offset_from.location
     node.location = (other_node_loc.x + x, other_node_loc.y + y)
+
+
+def save_image(image: bpy.types.Image, filepath: str) -> None:
+    """Saves an image to disk."""
+    if bpy.app.version > (3, 4):
+        image.save(filepath=filepath)
+    else:
+        old_filepath = image.filepath_raw
+        image.filepath_raw = filepath
+
+        try:
+            image.save()
+        finally:
+            image.filepath_raw = old_filepath
+
+
+def sequence_img_path(img_seq: bpy.types.Image, frame: int) -> str:
+    """Returns the filepath of a specific frame from an image sequence.
+    The returned filepath may or may not point to an existing file.
+    """
+    if not img_seq.source == 'SEQUENCE':
+        raise ValueError("img_seq should be an image sequence")
+
+    if not img_seq.filepath_raw:
+        raise ValueError("img_seq has no filepath")
+
+    base_path, ext = os.path.splitext(img_seq.filepath_raw)
+
+    if base_path[-1].isdigit():
+        # Find the length of the numerical suffix
+        suffix_len = len(list(it.takewhile(lambda x: x.isdigit(),
+                                           reversed(base_path))))
+    elif base_path[-1].lower() == "x":
+        # Also accept names like "image.XXX.png"
+        suffix_len = len(list(it.takewhile(lambda x: x.lower() == "x",
+                                           reversed(base_path))))
+    else:
+        raise ValueError(f"{img_seq.filepath} is not recognised as the "
+                         "filepath of an image sequence")
+    assert suffix_len > 0
+
+    #        {base_path without suffix}{padded frame number}{file extension}
+    return f"{base_path[:-suffix_len]}{frame:0{suffix_len}}{ext}"
 
 
 def settings_from_image(image: bpy.types.Image) -> typing.Dict[str, Any]:
