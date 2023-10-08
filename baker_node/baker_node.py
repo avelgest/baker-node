@@ -263,7 +263,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 # Plane axes
                 layout.prop(self, "target_plane_align")
 
-            # Colorspace + check alpha
+            # Colorspace + check alpha + image sequence
             if image_node is not None and image_node.image is not None:
                 image = image_node.image
                 row = layout.row()
@@ -276,6 +276,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 if self.should_bake_alpha and not utils.image_has_alpha(image):
                     layout.label(text="Image has no alpha channel",
                                  icon='ERROR')
+
+                if image.source == 'SEQUENCE':
+                    image_user = self.image_user
+                    col = layout.column(align=True)
+                    col.prop(image_user, "frame_duration")
+                    col.prop(image_user, "frame_start")
+                    col.prop(image_user, "frame_offset")
+
+                    if not image.filepath_raw:
+                        layout.label(icon='ERROR',
+                                     text="Image has no filepath")
 
         elif self.target_type == 'COLOR_ATTRIBUTE':
             row = layout.row(align=True)
@@ -471,7 +482,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             utils.sequence_img_path(target_image, 1)
         except ValueError as e:
             raise self.ScheduleBakeError(
-                f"Image sequence {target_image.name} has an invalid filepath"
+                "Filepath is invalid "
+                "(must contain a numeric suffix e.g. image.001.png)"
                 ) from e
 
         dir_name = os.path.dirname(filepath)
@@ -480,9 +492,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 f"Invalid filepath for image sequence {target_image.name}:"
                 f"{dir_name} is not a directory")
 
-        # TODO Use ImageUser prop to set frame range
-        scene = bpy.context.scene
-        for x in range(scene.frame_start, min(scene.frame_end + 1, 100)):
+        image_user = self.image_user
+        for x in range(image_user.frame_start + image_user.frame_offset,
+                       image_user.frame_start + image_user.frame_duration):
             bake_queue.add_bake_job(self, frame=x)
 
     def perform_bake(self,
@@ -787,6 +799,20 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return 'IMAGE_TEXTURES'
 
     @property
+    def image_user(self) -> bpy.types.ImageUser:
+        """The bpy.types.ImageUser used when the bake target is an
+        image sequence.
+        """
+        image_node = internal_tree.get_target_image_node(self, True)
+        if image_node is None:
+            internal_tree.rebuild_node_tree(self)
+            image_node = internal_tree.get_target_image_node(self, True)
+            if image_node is None:
+                raise RuntimeError("No target image node after baker node "
+                                   "tree rebuild")
+        return image_node.image_user
+
+    @property
     def is_target_image_seq(self) -> bool:
         """Returns True if the bake_target is an image sequence."""
         return getattr(self.bake_target, "source", "") == 'SEQUENCE'
@@ -978,6 +1004,33 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
 
         layout.prop(baker_node, "samples")
         layout.prop(baker_node, "specific_bake_object")
+
+        if baker_node.cycles_target_enum == 'IMAGE_TEXTURES':
+            image = baker_node.target_image
+            if image is None:
+                return
+
+            layout.context_pointer_set("image", image)
+            layout.separator(factor=1.0)
+            layout.label(text="Image Settings")
+            layout.prop(image, "source")
+
+            if baker_node.is_target_image_seq:
+                image_user = baker_node.image_user
+                layout.label(text="Image Sequence")
+                col = layout.column(align=True)
+                col.prop(image_user, "use_auto_refresh")
+                col.prop(image_user, "use_cyclic")
+
+            elif image.source == 'GENERATED':
+                layout.label(text="Generated")
+                col = layout.column(align=True)
+                col.prop(image, "generated_width", text="Width")
+                col.prop(image, "generated_height", text="Height")
+                col.prop(image, "use_generated_float")
+
+            elif image.source == 'MOVIE':
+                layout.label(icon='ERROR', text="Image source not supported")
 
 
 def register():

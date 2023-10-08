@@ -467,8 +467,8 @@ class TestBakerNode(unittest.TestCase):
         self.img_target.source = 'SEQUENCE'
         self.img_target.filepath_raw = generic_path.format(1)
 
-        bpy.context.scene.frame_start = frame_start
-        bpy.context.scene.frame_end = frame_end
+        baker_node.image_user.frame_start = 1
+        baker_node.image_user.frame_duration = 2
 
         self._set_target(baker_node, self.img_target)
         self.assertTrue(baker_node.is_target_image_seq)

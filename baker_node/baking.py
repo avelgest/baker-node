@@ -3,6 +3,7 @@
 import contextlib
 import math
 import operator
+import os
 import time
 import typing
 import warnings
@@ -359,7 +360,14 @@ class _BakerNodeBaker:
             # Bake to a temporary target instead
             target = self.baker_node.target_image.copy()
             target.name = _TMP_TARGET_NAME
-            target.source = 'GENERATED'
+            if (target.source == 'SEQUENCE'
+                    and target.filepath_raw
+                    and os.path.isfile(target.filepath_raw)):
+                # For image sequences we want to keep the file format
+                # info for saving.
+                target.source = 'FILE'
+            else:
+                target.source = 'GENERATED'
             # Any existing temp target should have been deleted
             assert target.name == _TMP_TARGET_NAME
 
