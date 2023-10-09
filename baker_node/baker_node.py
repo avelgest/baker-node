@@ -493,9 +493,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 f"{dir_name} is not a directory")
 
         image_user = self.image_user
-        for x in range(image_user.frame_start + image_user.frame_offset,
+        for x in range(image_user.frame_start,
                        image_user.frame_start + image_user.frame_duration):
-            bake_queue.add_bake_job(self, frame=x)
+            bake_queue.add_bake_job(self, frame=x - image_user.frame_offset)
 
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,

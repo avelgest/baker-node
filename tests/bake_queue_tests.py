@@ -204,6 +204,7 @@ class TestBakeQueue(unittest.TestCase):
         # Job should be run immediately and have been removed
         self.assertFalse(bake_queue.jobs)
 
+    @unittest.skipUnless(supports_bg_baking, "Background baking not supported")
     def test_2_5_add_job_frame_async(self):
         bake_queue = self.bake_queue
         baker_node = self.baker_node
