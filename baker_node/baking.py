@@ -309,9 +309,13 @@ class _BakerNodeBaker:
         if self.is_preview:
             if self._bake_type == 'IMAGE_TEX_PLANE':
                 self._setup_target_plane_preview()
+            elif self._bake_type == 'IMAGE_TEX_UV':
+                self._deselect_all_nodes()
+                self._setup_target_image()
             else:
                 raise RuntimeError("Unsupported type for preview "
                                    f"{self._bake_type}")
+
         elif self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
             self._deselect_all_nodes()
             self._setup_target_image()
@@ -356,7 +360,15 @@ class _BakerNodeBaker:
         # bake target
         target_tree = self._target_tree
 
-        if self.baker_node.get(_USE_TMP_TARGET_PROP):
+        if self.is_preview:
+            target_size = get_prefs().preview_size
+            display_device = bpy.context.scene.display_settings.display_device
+            target = bpy.data.images.new(_TMP_TARGET_NAME,
+                                         target_size, target_size,
+                                         is_data=display_device == 'None')
+            assert target.name == _TMP_TARGET_NAME
+
+        elif self.baker_node.get(_USE_TMP_TARGET_PROP):
             # Bake to a temporary target instead
             target = self.baker_node.target_image.copy()
             target.name = _TMP_TARGET_NAME
@@ -424,7 +436,7 @@ class _BakerNodeBaker:
                                        selected_objects=[self._object])
 
             op_caller.call(bpy.ops.object.bake, exec_ctx,
-                           uv_layer=self._uv_layer)
+                           uv_layer=self._uv_layer, margin=self._margin)
 
             if exec_ctx == 'INVOKE_DEFAULT':
                 self._delay_exit_stack_close()
@@ -577,8 +589,22 @@ class _BakerNodeBaker:
     def _cycles_target_enum(self) -> str:
         """The CyclesRenderSettings.bake_type value to use when baking."""
         if self.is_preview:
+            if self._imaged_based_preview:
+                return 'IMAGE_TEXTURES'
             return 'VERTEX_COLORS'
         return self.baker_node.cycles_target_enum
+
+    @property
+    def _imaged_based_preview(self) -> bool:
+        """True if an image should be used instead of a color attribute
+        when baking previews.
+        """
+        return self.baker_node.target_type == 'IMAGE_TEX_UV'
+
+    @property
+    def _margin(self) -> int:
+        """The margin to use when baking to images."""
+        return 0 if self.is_preview else bpy.context.scene.render.bake.margin
 
     @property
     def _use_external_ma_node(self) -> bool:
@@ -636,7 +662,7 @@ class _BakerNodePostprocess:
             mesh.color_attributes.remove(color_attr)
 
     @classmethod
-    def _get_color_attr_as_display(cls, color_attr) -> bpy.types.Sequence:
+    def _get_color_attr_as_display(cls, color_attr) -> typing.Sequence[float]:
         """Returns the values of a color attribute as an array taking
         into account the scene.display_settings.display_device.
         """
@@ -669,36 +695,69 @@ class _BakerNodePostprocess:
             return color_data
         return color_data
 
-    def _postprocess_preview(self) -> None:
-        # Copy the vertex color data from the preview plane to the
-        # preview image of the baker node
+    def _postprocess_preview_color_attr(self
+                                        ) -> Optional[typing.Sequence[float]]:
+        """For IMAGE_TEX_PLANE bake type. Returns a copy of the color data
+        from the target plane's color attribute. Deletes the target plane.
+        """
+        # Copy the vertex color data from the preview plane
         mesh = bpy.data.meshes.get(_PREVIEW_MESH_NAME)
         if mesh is None:
             warnings.warn("Preview mesh not found. Cannot complete preview "
                           "generation.")
-            return
+            return None
 
         max_size = get_prefs().preview_size
-
-        preview = self.baker_node.preview_ensure()
-        preview.image_size = [max_size, max_size]
 
         color_attr = mesh.color_attributes[0]
 
         if len(color_attr.data) != max_size * max_size + 1:
             raise RuntimeError("Color attribute has wrong size")
 
-        color_data = self._get_color_attr_as_display(color_attr)
+        color_data = self._get_color_attr_as_display(color_attr)[:-4]
+        bpy.data.meshes.remove(mesh)
 
-        if self.baker_node.should_bake_alpha:
+        return color_data
+
+    def _postprocess_preview_image(self) -> Optional[typing.Sequence[float]]:
+        """Returns a copy of the color data from the preview image target."""
+        image = bpy.data.images.get(_TMP_TARGET_NAME)
+        if image is None:
+            return None
+
+        np = utils.get_numpy()
+        if np is not None:
+            pixel_data = np.zeros(len(image.pixels), dtype=np.float32)
+        else:
+            pixel_data = array('f', [0]) * len(image.pixels)
+
+        image.pixels.foreach_get(pixel_data)
+        return pixel_data
+
+    def _postprocess_preview(self) -> None:
+        baker_node = self.baker_node
+
+        if self._is_image_based_preview:
+            color_data = self._postprocess_preview_image()
+        else:
+            color_data = self._postprocess_preview_color_attr()
+
+        if color_data is None:
+            return
+
+        max_size = get_prefs().preview_size
+
+        if (baker_node.target_type != 'IMAGE_TEX_PLANE'
+                or baker_node.should_bake_alpha):
             # Add a checkered background
             background = utils.checker_image(max_size, max_size, 4)
-            image = utils.apply_background(color_data[:-4], background)
+            image = utils.apply_background(color_data, background)
         else:
-            image = color_data[:-4]
-        preview.image_pixels_float.foreach_set(image)
+            image = color_data
 
-        bpy.data.meshes.remove(mesh)
+        preview = baker_node.preview_ensure()
+        preview.image_size = [max_size, max_size]
+        preview.image_pixels_float.foreach_set(image)
 
     def _apply_temp_target(self) -> None:
         # If a temp target was used then this idprop should be set
@@ -745,12 +804,21 @@ class _BakerNodePostprocess:
         utils.save_image(tmp_target, filepath)
 
     def postprocess(self) -> None:
-        self._apply_temp_target()
 
         if self.is_preview:
             self._postprocess_preview()
         elif self.baker_node.target_type == 'VERTEX_MASK':
             self._postprocess_vertex_mask()
+        elif self.baker_node.get(_USE_TMP_TARGET_PROP):
+            self._apply_temp_target()
+
+    @property
+    def _is_image_based_preview(self) -> bool:
+        """True if handling a preview baked as an image instead of a
+        color attribute.
+        """
+        return (self.is_preview
+                and self.baker_node.target_type != 'IMAGE_TEX_PLANE')
 
 
 class PostProcessError(RuntimeError):

@@ -388,6 +388,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def _target_type_update(self) -> None:
         internal_tree.relink_node_tree(self)
         self._refresh_sockets_enabled()
+        self._invalidate_preview()
 
     def _refresh_sockets_enabled(self, check_sockets: bool = True) -> None:
         # TODO Move to internal_tree module
@@ -463,7 +464,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """
         if (self._can_display_preview
                 and not bake_queue.has_scheduled_preview_job(self)):
-            bake_queue.add_bake_job(self, is_preview=True)
+            bake_queue.add_bake_job(self,
+                                    is_preview=True,
+                                    immediate=self._bake_previews_background)
 
     def _schedule_image_seq_bake(self) -> None:
         """Schedule this node for baking to an image sequence. Adds
@@ -546,6 +549,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """Called when the bake has been completed."""
         if is_preview:
             baking.postprocess_baker_node(self, obj, is_preview=True)
+            baking.post_bake_clean_up(self)
             return
 
         # self.bake_in_progress should still be True at this point since
@@ -763,6 +767,13 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return bake_queue.has_scheduled_job(self)
 
     @property
+    def _bake_previews_background(self) -> bool:
+        """Returns True if previews should be baked in the background."""
+        if self.target_type == 'IMAGE_TEX_PLANE':
+            return get_prefs().preview_background_bake
+        return False
+
+    @property
     def bake_target(self) -> Optional[BakeTarget]:
         """The target to bake to. The type returned depends on this
         nodes target type (str for color attributes or Image for image
@@ -787,7 +798,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     @property
     def _can_display_preview(self) -> bool:
         """Returns True if this node can display a preview image."""
-        return self.target_type == 'IMAGE_TEX_PLANE'
+        return self.target_type in ('IMAGE_TEX_PLANE', 'IMAGE_TEX_UV')
 
     @property
     def cycles_target_enum(self) -> str:

@@ -648,11 +648,11 @@ class TestBakerNode(unittest.TestCase):
         self.assertNotEqual(baker_node_2.bake_target, baker_node.bake_target)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
-    def test_5_4_preview_bake(self):
+    def test_5_4_preview_bake(self, target_type: str = 'IMAGE_TEX_PLANE'):
         prefs = preferences.get_prefs()
 
         baker_node = self._new_baker_node("preview_bake_test")
-        baker_node.target_type = 'IMAGE_TEX_PLANE'
+        baker_node.target_type = target_type
 
         self.assertIsNone(baker_node.preview)
 
@@ -679,9 +679,9 @@ class TestBakerNode(unittest.TestCase):
             self.assertAlmostEqual(x, y, delta=0.02)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
-    def test_5_5_preview_bake_alpha(self):
+    def test_5_5_preview_bake_alpha(self, target_type='IMAGE_TEX_PLANE'):
         baker_node = self._new_baker_node("preview_bake_test")
-        baker_node.target_type = 'IMAGE_TEX_PLANE'
+        baker_node.target_type = target_type
 
         color = (0.9, 0.9, 0.9, 1.0)
         color_node = self.node_tree.nodes.new("ShaderNodeRGB")
@@ -742,3 +742,7 @@ class TestBakerNode(unittest.TestCase):
 
         # Check that any temporary images have been deleted
         self.assertEqual(len(bpy.data.images), num_bpy_imgs)
+
+    def test_5_7_preview_bake_images(self):
+        self.test_5_4_preview_bake('IMAGE_TEX_UV')
+        self.test_5_5_preview_bake_alpha('IMAGE_TEX_UV')

@@ -479,11 +479,12 @@ class BakeQueue(bpy.types.PropertyGroup):
 
 
 def add_bake_job(baker_node,
+                 immediate: bool = False,
                  is_preview: bool = False,
                  frame: Optional[int] = None) -> None:
     """Adds a job to the bake queue from a BakerNode instance."""
     bake_queue = utils.get_bake_queue()
-    bake_queue.add_job_from_baker_node(baker_node,
+    bake_queue.add_job_from_baker_node(baker_node, immediate=immediate,
                                        is_preview=is_preview, frame=frame)
 
 
