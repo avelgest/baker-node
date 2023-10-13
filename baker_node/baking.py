@@ -502,7 +502,6 @@ class _BakerNodeBaker:
         the baker's ExitStack closes.
         """
         scene = bpy.context.scene
-        baker_node = self.baker_node
         exit_stack = self._exit_stack
         prefs = get_prefs()
 
@@ -528,7 +527,7 @@ class _BakerNodeBaker:
         cycles_props.film_exposure = 1.0
         # TODO add use_preview_adaptive_sampling/use_denoising to prefs?
         # cycles_props.use_preview_adaptive_sampling = True  # TODO ???
-        cycles_props.samples = 1 if self.is_preview else baker_node.samples
+        cycles_props.samples = self._samples
         cycles_props.use_denoising = False
 
         bake_props.target = self._cycles_target_enum
@@ -611,6 +610,13 @@ class _BakerNodeBaker:
         if margin < 0:
             return bpy.context.scene.render.bake.margin
         return margin
+
+    @property
+    def _samples(self) -> int:
+        """The number of samples to use when baking."""
+        if self.is_preview:
+            return get_prefs().preview_samples
+        return self.baker_node.samples
 
     @property
     def _use_external_ma_node(self) -> bool:

@@ -104,6 +104,13 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         update=lambda self, _: self._preview_background_bake_update()
     )
 
+    preview_samples: IntProperty(
+        name="Preview Samples",
+        description="Number of samples to use for baking previews",
+        default=1,
+        min=1, soft_max=256
+    )
+
     use_numpy: BoolProperty(
         name="Use NumPy",
         description="Allows the add-on to use NumPy for certain operations",
@@ -121,6 +128,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow = layout.column_flow(columns=2)
         flow.prop(self, "preview_size")
         flow.prop(self, "preview_update_interval")
+        flow.prop(self, "preview_samples")
         flow.prop(self, "preview_background_bake")
         layout.separator()
 
