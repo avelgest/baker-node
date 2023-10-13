@@ -338,9 +338,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """Draw node buttons in sidebar"""
         layout.context_pointer_set("baker_node", self)
 
-        layout.prop(self, "samples")
-
         self.draw_buttons(context, layout)
+        layout.separator(factor=2.0)
+        BakerNodeSettingsPanel.draw_for(self, context, layout)
 
     def _draw_preview(self, layout) -> None:
         if not self._can_display_preview:
@@ -1013,13 +1013,8 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_description = "Additional settings for this baker node"
 
-    def draw(self, context):
-        layout = self.layout
-
-        baker_node = getattr(context, "baker_node", None)
-        if baker_node is None:
-            layout.label(text="No baker node set", icon='ERROR')
-            return
+    @classmethod
+    def draw_for(cls, baker_node, _context, layout) -> None:
 
         layout.prop(baker_node, "samples")
         layout.prop(baker_node, "margin")
@@ -1051,6 +1046,15 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
 
             elif image.source == 'MOVIE':
                 layout.label(icon='ERROR', text="Image source not supported")
+
+    def draw(self, context):
+
+        baker_node = getattr(context, "baker_node", None)
+        if baker_node is None:
+            self.layout.label(text="No baker node set", icon='ERROR')
+            return
+
+        self.draw_for(baker_node, context, self.layout)
 
 
 def register():
