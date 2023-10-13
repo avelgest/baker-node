@@ -78,6 +78,14 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         min=0, soft_max=1024
     )
 
+    preview_cache: BoolProperty(
+        name="Cache Previews",
+        description="Maintains a per-frame cache of previews. Allows for "
+                    "fast playback when node properties are animated",
+        default=True,
+        update=lambda self, _: self._preview_cache_update()
+    )
+
     preview_size: IntProperty(
         name="Max Preview Size",
         description="The maximum width or height of a preview image",
@@ -129,7 +137,9 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow.prop(self, "preview_size")
         flow.prop(self, "preview_update_interval")
         flow.prop(self, "preview_samples")
-        flow.prop(self, "preview_background_bake")
+        col = layout.column()
+        col.prop(self, "preview_background_bake")
+        col.prop(self, "preview_cache")
         layout.separator()
 
         col = layout.column(align=True)
@@ -160,6 +170,11 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         if (self.preview_background_bake
                 and not self.supports_background_baking):
             self.preview_background_bake = False
+
+    def _preview_cache_update(self):
+        if not self.preview_cache:
+            from . import previews
+            previews.remove_frame_check_handler()
 
     def _preview_update_interval_update(self):
         value = self.preview_update_interval

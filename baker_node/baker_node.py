@@ -23,6 +23,7 @@ from . import bake_queue
 from . import baking
 from . import internal_tree
 from . import preferences
+from . import previews
 from . import utils
 
 from . node_hasher import NodeHasher
@@ -56,11 +57,6 @@ if not preferences.supports_color_attributes:
     # Remove target types that require color attribute support
     target_types = [x for x in target_types
                     if x[0] not in ('COLOR_ATTRIBUTE', 'VERTEX_MASK')]
-
-
-# ImagePreviewCollection for storing the previews for Baker nodes
-if "_preview_collection" not in globals():
-    _preview_collection = bpy.utils.previews.new()
 
 
 class BakerNode(bpy.types.ShaderNodeCustomGroup):
@@ -212,6 +208,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def free(self):
         if self.node_tree is not None:
             bpy.data.node_groups.remove(self.node_tree)
+        previews.clear_cached_frames(self)
 
     def update(self):
         # Bug in Blender version 3.5.0 where sockets are re-enabled on
@@ -358,8 +355,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         prefs = get_prefs()
 
+        if prefs.preview_cache:
+            previews.ensure_frame_check_handler()
+
         if prefs.automatic_preview_updates:
-            _ensure_preview_check_timer(self)
+            previews.ensure_preview_check_timer(self)
         else:
             layout.operator("node.bkn_refresh_preview")
 
@@ -368,12 +368,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             layout.template_icon(preview.icon_id, scale=8)
 
     def _invalidate_preview(self) -> None:
-        self._last_preview_hash = b""
+        self.last_preview_hash = b""
+        previews.clear_cached_frames(self)
 
     def preview_ensure(self) -> bpy.types.ImagePreview:
-        preview = _preview_collection.get(self.identifier)
+        preview_collection = previews.preview_collection
+
+        preview = preview_collection.get(self.identifier)
         if preview is None:
-            preview = _preview_collection.new(self.identifier)
+            preview = preview_collection.new(self.identifier)
         return preview
 
     def preview_update_check(self,
@@ -389,8 +392,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 hasher = NodeHasher(self.id_data)
             current_hash = hasher.hash_input_sockets(self)
 
-            if current_hash != self._last_preview_hash:
-                self._last_preview_hash = current_hash
+            if current_hash == self.last_preview_hash:
+                return
+
+            self.last_preview_hash = current_hash
+            frame = bpy.context.scene.frame_current
+
+            # Try loading a cached preview
+            if not previews.apply_cached_preview(self, current_hash, frame):
+                # If there is no suitable cached preview bake a new one
                 self.schedule_preview_bake()
 
     def _target_type_update(self) -> None:
@@ -556,6 +566,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                          is_preview: bool = False) -> None:
         """Called when the bake has been completed."""
         if is_preview:
+            # N.B. Postprocessing will also add the preview data to the
+            # preview cache if enabled.
             baking.postprocess_baker_node(self, obj, is_preview=True)
             baking.post_bake_clean_up(self)
             return
@@ -851,19 +863,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self["last_bake_hash"] = value
 
     @property
-    def _last_preview_hash(self) -> bytes:
+    def last_preview_hash(self) -> bytes:
         """The hash of this node when its preview was last updated."""
         return self.get("last_preview_hash", b"")
 
-    @_last_preview_hash.setter
-    def _last_preview_hash(self, value: bytes):
+    @last_preview_hash.setter
+    def last_preview_hash(self, value: bytes):
         if not isinstance(value, bytes):
             raise TypeError("Expected a bytes value")
         self["last_preview_hash"] = value
 
     @property
     def preview(self) -> Optional[bpy.types.ImagePreview]:
-        return _preview_collection.get(self.identifier)
+        return previews.get_preview(self)
 
     @property
     def preview_visible(self) -> bool:
@@ -900,59 +912,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def node_tree_name(self) -> str:
         """The name that this node's nodegroup is expected to have."""
         return f".baker node {self.identifier}"
-
-
-# Check if _check_previews_current is already registered and unregister
-# it if it is. (Occurs when the module is re-imported).
-_old_check_previews_current = globals().get("_check_previews_current")
-if (_old_check_previews_current is not None
-        and bpy.app.timers.is_registered(_old_check_previews_current)):
-    bpy.app.timers.unregister(_old_check_previews_current)
-
-
-has_previewed_nodes_prop = "hasPreviewedBakerNodes"
-
-
-def _check_previews_current() -> Optional[float]:
-    """Checks whether the baker nodes in any open shader editors need
-    to upate their previews and schedules them to update if they do.
-    """
-    node_spaces = [area.spaces.active for area in bpy.context.screen.areas
-                   if area.type == 'NODE_EDITOR']
-    shader_trees = [x.edit_tree for x in node_spaces
-                    if x.tree_type == "ShaderNodeTree"
-                    and x.edit_tree is not None
-                    and x.edit_tree.get(has_previewed_nodes_prop, False)]
-
-    for node_tree in shader_trees:
-        hasher = NodeHasher(node_tree)
-        for node in node_tree.nodes:
-            if node.bl_idname == BakerNode.bl_idname:
-                node.preview_update_check(hasher)
-
-    prefs = get_prefs()
-    if not prefs.automatic_preview_updates:
-        return None
-    return prefs.preview_update_interval
-
-
-def _ensure_preview_check_timer(baker_node) -> None:
-    """Ensure _check_previews_current is registered to run for the
-    node tree containing this node.
-    """
-    if has_previewed_nodes_prop not in baker_node.id_data:
-        # Ensure has_previewed_nodes_prop is set to True on the node
-        # (use timer so this function can be called in draw calls)
-        node_tree_getter = utils.safe_node_tree_getter(baker_node.id_data)
-
-        def set_has_previewed_nodes():
-            node_tree = node_tree_getter()
-            if node_tree is not None:
-                node_tree[has_previewed_nodes_prop] = True
-        bpy.app.timers.register(set_has_previewed_nodes)
-
-    if not bpy.app.timers.is_registered(_check_previews_current):
-        bpy.app.timers.register(_check_previews_current)
 
 
 def add_bkn_node_menu_func(self, context):

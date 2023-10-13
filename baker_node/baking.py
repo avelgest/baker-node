@@ -19,6 +19,7 @@ from bpy.types import NodeSocket
 from mathutils import Matrix
 
 from . import internal_tree
+from . import previews
 from . import utils
 from .preferences import get_prefs
 
@@ -647,6 +648,7 @@ class _BakerNodePostprocess:
     def __init__(self, baker_node, obj=None, is_preview=False):
         self.baker_node = baker_node
         self.is_preview = is_preview
+        self.frame: Optional[int] = baker_node.get(_IMAGE_SEQ_FRAME_PROP)
 
         if obj is None:
             obj = baker_node.bake_object
@@ -757,7 +759,8 @@ class _BakerNodePostprocess:
         if color_data is None:
             return
 
-        max_size = get_prefs().preview_size
+        prefs = get_prefs()
+        max_size = prefs.preview_size
 
         if (baker_node.target_type != 'IMAGE_TEX_PLANE'
                 or baker_node.should_bake_alpha):
@@ -771,12 +774,23 @@ class _BakerNodePostprocess:
         preview.image_size = [max_size, max_size]
         preview.image_pixels_float.foreach_set(image)
 
+        scene = bpy.context.scene
+        frame = scene.frame_current
+
+        # Cache the preview data
+        if (prefs.preview_cache
+                and frame >= scene.frame_start
+                and frame <= scene.frame_end):
+
+            previews.cache_frame_data(baker_node, baker_node.last_preview_hash,
+                                      frame, image)
+
     def _apply_temp_target(self) -> None:
         # If a temp target was used then this idprop should be set
         if not self.baker_node.get(_USE_TMP_TARGET_PROP):
             return
 
-        if _IMAGE_SEQ_FRAME_PROP in self.baker_node:
+        if self.frame is not None:
             self._apply_temp_target_frame()
             return
 
@@ -806,13 +820,14 @@ class _BakerNodePostprocess:
         """Saves the temp target image to disk (only used when baking
         to image sequences).
         """
+        assert self.frame is not None
         tmp_target = bpy.data.images[_TMP_TARGET_NAME]
-        frame = self.baker_node[_IMAGE_SEQ_FRAME_PROP]
 
         if not self.baker_node.is_target_image_seq:
             raise PostProcessError("Baker target is not an image sequence")
 
-        filepath = utils.sequence_img_path(self.baker_node.target_image, frame)
+        filepath = utils.sequence_img_path(self.baker_node.target_image,
+                                           self.frame)
         utils.save_image(tmp_target, filepath)
 
     def postprocess(self) -> None:
