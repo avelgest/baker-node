@@ -375,7 +375,7 @@ class _BakerNodeBaker:
             target.name = _TMP_TARGET_NAME
             if (target.source == 'SEQUENCE'
                     and target.filepath_raw
-                    and os.path.isfile(target.filepath_raw)):
+                    and os.path.isfile(os.path.abspath(target.filepath_raw))):
                 # For image sequences we want to keep the file format
                 # info for saving.
                 target.source = 'FILE'

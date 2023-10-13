@@ -494,7 +494,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             raise ValueError("Target is not an image sequence")
 
         target_image = self.target_image
-        filepath = target_image.filepath_raw
+        filepath = bpy.path.abspath(target_image.filepath_raw)
         if not filepath:
             raise self.ScheduleBakeError(
                 f"Image sequence {target_image.name} has no filepath")
@@ -507,11 +507,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 "(must contain a numeric suffix e.g. image.001.png)"
                 ) from e
 
-        dir_name = os.path.dirname(filepath)
-        if dir_name and not os.path.isdir(dir_name):
+        dir_path = os.path.dirname(bpy.path.abspath(filepath))
+        if dir_path and not os.path.isdir(dir_path):
             raise self.ScheduleBakeError(
-                f"Invalid filepath for image sequence {target_image.name}:"
-                f"{dir_name} is not a directory")
+                f"Invalid filepath for image sequence {target_image.name}: "
+                f"{dir_path} is not a directory")
 
         image_user = self.image_user
         for x in range(image_user.frame_start,
