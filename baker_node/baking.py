@@ -604,7 +604,13 @@ class _BakerNodeBaker:
     @property
     def _margin(self) -> int:
         """The margin to use when baking to images."""
-        return 0 if self.is_preview else bpy.context.scene.render.bake.margin
+        if self.is_preview:
+            return 0
+
+        margin = self.baker_node.margin
+        if margin < 0:
+            return bpy.context.scene.render.bake.margin
+        return margin
 
     @property
     def _use_external_ma_node(self) -> bool:

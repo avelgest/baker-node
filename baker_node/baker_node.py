@@ -124,6 +124,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         update=lambda self, _: self._relink_node_tree()
     )
 
+    margin: IntProperty(
+        name="Margin",
+        description="Extends the baked result as a post process filter."
+                    "-1 uses the value set in the Render Properties panel",
+        default=-1, min=-1, soft_max=64, max=2**15 - 1,
+        subtype='PIXEL'
+    )
+
     # N.B. A python property is used for target_image to prevent
     # increasing the images user count.
 
@@ -1014,6 +1022,7 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
             return
 
         layout.prop(baker_node, "samples")
+        layout.prop(baker_node, "margin")
         layout.prop(baker_node, "specific_bake_object")
 
         if baker_node.cycles_target_enum == 'IMAGE_TEXTURES':
