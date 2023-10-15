@@ -597,7 +597,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.last_bake_hash = NodeHasher(self.id_data).hash_input_sockets(self)
 
     def on_bake_cancel(self, _obj: bpy.types.Object = None) -> None:
-        """Called if the bake is cancelled."""
+        """Called by the BakeQueue if the bake is cancelled.
+        Should not affect any other jobs in the queue.
+        """
         if not self.bake_in_progress:
             return
 
@@ -608,7 +610,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         cancel a job that has already started). If synced is True then
         also cancel the bake of all synced nodes.
         """
-        bake_queue.cancel_bake_jobs(self)
+        bake_queue.cancel_bake_jobs(self, previews=False)
 
         if synced:
             for node in self._find_synced_nodes():

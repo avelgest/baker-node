@@ -14,6 +14,14 @@ def object_bake_cancel(*_args):
     bake_queue = utils.get_bake_queue()
 
     if bake_queue.job_in_progress:
+        job = bake_queue.active_job
+        baker_node = job.get_baker_node()
+
+        if baker_node.is_target_image_seq and not job.is_preview:
+            # Cancel all other non-preview jobs from this node
+            # Does not affect the active job
+            cancel_bake_jobs(baker_node, previews=False)
+
         bake_queue.job_cancel(bake_queue.active_job)
 
     # At this point bpy.app.is_job_running still returns True so delay
@@ -144,7 +152,9 @@ class BakeQueueJob(bpy.types.PropertyGroup):
                                       "identifier", self.node_id)
 
     def on_cancel(self) -> None:
-        """Called by BakeQueue if this job is cancelled."""
+        """Called by BakeQueue if this job is cancelled.
+        Should not affect other bake jobs.
+        """
         if self.finished:
             return
 
@@ -363,9 +373,12 @@ class BakeQueue(bpy.types.PropertyGroup):
             self.try_run_next()
             self._add_update_timer()
 
-    def cancel_baker_node_jobs(self, baker_node) -> None:
+    def cancel_baker_node_jobs(self,
+                               baker_node,
+                               previews: bool = True) -> None:
         """Cancels all jobs in the queue for the given BakerNode.
         Does not affect jobs that have already started baking.
+        If previews is True then preview jobs are also cancelled.
         """
         if not hasattr(baker_node, "identifier"):
             raise ValueError("Expected baker_node to have an 'identifier'"
@@ -376,7 +389,8 @@ class BakeQueue(bpy.types.PropertyGroup):
         # indices of all jobs from baker_node
         indices = [idx for idx, job in enumerate(self.jobs)
                    if job.node_id == baker_node.identifier
-                   and job != active_job]
+                   and job != active_job
+                   and (not previews or not job.is_preview)]
 
         # Remove from back to front so indices remain valid
         indices.sort(reverse=True)
@@ -488,10 +502,10 @@ def add_bake_job(baker_node,
                                        is_preview=is_preview, frame=frame)
 
 
-def cancel_bake_jobs(baker_node) -> None:
+def cancel_bake_jobs(baker_node, previews: bool = True) -> None:
     """Cancels all jobs in the bake queue from baker_node."""
     bake_queue = utils.get_bake_queue()
-    bake_queue.cancel_baker_node_jobs(baker_node)
+    bake_queue.cancel_baker_node_jobs(baker_node, previews)
 
 
 def count_baker_node_jobs(baker_node, preview: bool = False) -> int:
