@@ -8,7 +8,7 @@ import os
 import random
 import typing
 
-from typing import Optional, List
+from typing import Callable, Optional
 
 import bpy
 import bpy.utils.previews
@@ -644,7 +644,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                     except self.ScheduleBakeError:
                         pass
 
-    def _find_synced_nodes(self) -> List[BakerNode]:
+    def _find_synced_nodes(self) -> list[BakerNode]:
         """Returns a list of all nodes that this node is synced with."""
         if not self.sync:
             return []
@@ -1018,8 +1018,48 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
         self.draw_for(baker_node, context, self.layout)
 
 
+def _register_baker_node_factory() -> tuple[Callable[[], None],
+                                            Callable[[], None]]:
+    """Returns a pair of functions for registering/unregistering
+    the BakerNode class.
+    """
+
+    # Reloading the add-on when there are BakerNode instances can
+    # cause crashes when interacting with those instances.
+    # So only reregister BakerNode if no instances exist.
+    is_registered = False
+
+    def register_node():
+        """Register BakerNode if it is not already registered."""
+        nonlocal is_registered
+        if not is_registered:
+            bpy.utils.register_class(BakerNode)
+            is_registered = True
+
+    def unregister_node():
+        """Unregisters BakerNode only if there no instances exist."""
+        nonlocal is_registered
+
+        node_trees = it.chain(
+            (ma.node_tree for ma in bpy.data.materials
+             if ma.node_tree is not None),
+            (x for x in bpy.data.node_groups if x.type == 'SHADER')
+        )
+        nodes = it.chain.from_iterable(x.nodes for x in node_trees)
+
+        if (is_registered
+                and all(x.bl_idname != BakerNode.bl_idname for x in nodes)):
+            bpy.utils.unregister_class(BakerNode)
+            is_registered = False
+    return register_node, unregister_node
+
+
+if "_register_node" not in globals():
+    _register_node, _unregister_node = _register_baker_node_factory()
+
+
 def register():
-    bpy.utils.register_class(BakerNode)
+    _register_node()
     bpy.utils.register_class(BakerNodeSettingsPanel)
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.append(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.append(bkn_node_context_menu_func)
@@ -1029,4 +1069,4 @@ def unregister():
     bpy.types.NODE_MT_category_SH_NEW_OUTPUT.remove(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.remove(bkn_node_context_menu_func)
     bpy.utils.unregister_class(BakerNodeSettingsPanel)
-    bpy.utils.unregister_class(BakerNode)
+    _unregister_node()
