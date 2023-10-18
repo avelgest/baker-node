@@ -826,8 +826,14 @@ class _BakerNodePostprocess:
         if not self.baker_node.is_target_image_seq:
             raise PostProcessError("Baker target is not an image sequence")
 
+        image_user = self.baker_node.image_user
+
+        image_seq_frame = (self.frame + 1
+                           - image_user.frame_start
+                           + image_user.frame_offset)
+
         filepath = utils.sequence_img_path(self.baker_node.target_image,
-                                           self.frame)
+                                           image_seq_frame)
         utils.save_image(tmp_target, filepath)
 
     def postprocess(self) -> None:

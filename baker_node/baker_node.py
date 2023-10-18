@@ -482,8 +482,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """
         if (self._can_display_preview
                 and not bake_queue.has_scheduled_preview_job(self)):
+
             bake_queue.add_bake_job(self,
-                                    is_preview=True,
+                                    is_preview=True, frame=None,
                                     immediate=self._bake_previews_background)
 
     def _schedule_image_seq_bake(self) -> None:
@@ -514,9 +515,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 f"{dir_path} is not a directory")
 
         image_user = self.image_user
-        for x in range(image_user.frame_start,
-                       image_user.frame_start + image_user.frame_duration):
-            bake_queue.add_bake_job(self, frame=x - image_user.frame_offset)
+        frame_start = image_user.frame_start - image_user.frame_offset
+        for x in range(frame_start,
+                       frame_start + image_user.frame_duration):
+            bake_queue.add_bake_job(self, frame=x)
 
     def perform_bake(self,
                      obj: Optional[bpy.types.Object] = None,
