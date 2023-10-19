@@ -9,6 +9,8 @@ Download the latest baker_node ZIP file from the releases section, then from the
 Add-ons section of Blender’s preferences click *Install...* and select the
 downloaded .zip file. Enable the add-on labelled *“Node: Baker Node”*.
 
+For installing from source see the [Documentation](/wiki/Installation)
+
 ## Uses
 - Quickly create stencil masks or brush masks/textures from shader nodes.
 - Use shader nodes to set or modify an object's sculpt mask.
@@ -22,17 +24,22 @@ downloaded .zip file. Enable the add-on labelled *“Node: Baker Node”*.
 - Baker nodes can be synced so that multiple nodes can be baked with one click.
 - Option to automatically create target images or color attributes when baking.
 - Supports baking both color and alpha.
+- Use masking to limit the areas affected when baking.
+- Bake multiple frames to image sequences (see [Tips](/wiki/Tips#image-sequences) in the documentation).
 
 ## Target Types
 - **Image (UV)** - Bake to an image using a UV map of the active object.
 
 - **Image (Plane)** - Bake to an image using the co-ordinates of a plane.
-Useful for creating brush textures/masks. <br> An automatically updating preview
-of the result can be displayed by expanding the *Preview* section on the node.
+Useful for creating brush textures/masks.
 
 - **Color Attribute** - Bake to a color attribute on the active object.
 
 - **Sculpt Mask** - Replace or modify the active object's sculpt mask.
+
+For the **Image (UV)** and **Image (Plane)** target types an automatically
+updating preview of the bake can be displayed by expanding the *Preview*
+section on the node.
 
 ## Usage
 **Location:** Shader Editor > Add > Output > Baker
