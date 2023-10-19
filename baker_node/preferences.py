@@ -115,7 +115,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     preview_samples: IntProperty(
         name="Preview Samples",
         description="Number of samples to use for baking previews",
-        default=1,
+        default=4,
         min=1, soft_max=256
     )
 
