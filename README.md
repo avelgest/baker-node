@@ -9,7 +9,7 @@ Download the latest baker_node ZIP file from the releases section, then from the
 Add-ons section of Blender’s preferences click *Install...* and select the
 downloaded .zip file. Enable the add-on labelled *“Node: Baker Node”*.
 
-For installing from source see the [Documentation](/wiki/Installation)
+For installing from source see the [Documentation](../../wiki/Installation)
 
 ## Uses
 - Quickly create stencil masks or brush masks/textures from shader nodes.
@@ -25,7 +25,7 @@ For installing from source see the [Documentation](/wiki/Installation)
 - Option to automatically create target images or color attributes when baking.
 - Supports baking both color and alpha.
 - Use masking to limit the areas affected when baking.
-- Bake multiple frames to image sequences (see [Tips](/wiki/Tips#image-sequences) in the documentation).
+- Bake multiple frames to image sequences (see [Tips](../../wiki/Tips#image-sequences) in the documentation).
 
 ## Target Types
 - **Image (UV)** - Bake to an image using a UV map of the active object.
