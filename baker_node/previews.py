@@ -98,11 +98,16 @@ def ensure_preview_check_timer(node: baker_node.BakerNode) -> None:
         def set_has_previewed_nodes():
             node_tree = node_tree_getter()
             if node_tree is not None:
-                node_tree[has_previewed_nodes_prop] = True
+                try:
+                    node_tree[has_previewed_nodes_prop] = True
+                except AttributeError:
+                    # Sometimes ID classes may not be editable
+                    return 1e-4
+            return None
         bpy.app.timers.register(set_has_previewed_nodes)
 
     if not bpy.app.timers.is_registered(check_previews_current):
-        bpy.app.timers.register(check_previews_current)
+        bpy.app.timers.register(check_previews_current, first_interval=1e-4)
 
 
 def ensure_frame_check_handler() -> None:

@@ -7,6 +7,7 @@ import itertools as it
 import os
 import random
 import typing
+import warnings
 
 from typing import Callable, Optional
 
@@ -878,7 +879,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def last_bake_hash(self, value: bytes):
         if not isinstance(value, bytes):
             raise TypeError("Expected a bytes value")
-        self["last_bake_hash"] = value
+        try:
+            self["last_bake_hash"] = value
+        except AttributeError as e:
+            warnings.warn(f"Unable to set last_bake_hash: {e}")
 
     @property
     def last_preview_hash(self) -> bytes:
