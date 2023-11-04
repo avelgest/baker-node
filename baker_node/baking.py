@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import contextlib
+import functools
 import math
 import operator
 import os
@@ -89,9 +90,6 @@ class _BakerNodeBaker:
 
         if self._requires_object and self._object is None:
             raise RuntimeError("No valid object for baking set or selected")
-
-        # Node tree in which to place the bake target node
-        self._target_tree = baker_node.id_data
 
         self._exit_stack: Optional[contextlib.ExitStack] = None
 
@@ -633,6 +631,31 @@ class _BakerNodeBaker:
         if self.is_preview:
             return get_prefs().preview_samples
         return self.baker_node.samples
+
+    @functools.cached_property
+    def _target_tree(self) -> bpy.types.ShaderNodeTree:
+        """Node tree in which to place the image node that should be
+        selected when baking.
+        """
+        # Tree containing the Baker
+        baker_tree = self.baker_node.id_data
+
+        if self._object is None:
+            warnings.warn("Expected self._object to have a value")
+            return baker_tree
+
+        materials = [x.material for x in self._object.material_slots
+                     if x.material is not None]
+
+        if len(materials) == 1:
+            return materials[0].node_tree
+        if len(materials) > 1:
+            ma = utils.get_node_tree_ma(baker_tree, [self._object],
+                                        search_groups=True)
+            if ma is not None:
+                return ma.node_tree
+
+        return baker_tree
 
     @property
     def _use_external_ma_node(self) -> bool:

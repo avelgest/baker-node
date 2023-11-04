@@ -168,6 +168,31 @@ class TestUtils(unittest.TestCase):
             self.assertAlmostEqual(x, fg[i] if i % 4 != 3 else 1.0,
                                    delta=delta)
 
+    def test_all_nodes_of(self):
+        """Tests the all_nodes_of function."""
+        node_tree = self.node_tree
+        nodes = node_tree.nodes
+        nodes_set = {nodes.new("ShaderNodeMath") for _ in range(3)}
+        self.assertEqual(set(utils.all_nodes_of(node_tree)), nodes_set)
+
+        group_nodes = {nodes.new("ShaderNodeGroup") for _ in range(2)}
+        nodes_set |= group_nodes
+        self.assertEqual(set(utils.all_nodes_of(node_tree)), nodes_set)
+
+        # Check that trees in Group nodes are searched only once
+        new_group = bpy.data.node_groups.new("AllNodesOf", "ShaderNodeTree")
+        try:
+            new_group_set = {new_group.nodes.new("ShaderNodeMath")
+                             for _ in range(3)}
+            for node in group_nodes:
+                node.node_tree = new_group
+
+            result = list(utils.all_nodes_of(node_tree))
+            self.assertEqual(len(result), len(nodes_set) + len(new_group_set))
+            self.assertEqual(set(result), nodes_set | new_group_set)
+        finally:
+            bpy.data.node_groups.remove(new_group)
+
     def test_apply_background(self):
         """Test the apply_background function."""
         if NUMPY_TESTS:

@@ -155,9 +155,10 @@ def get_node_tree_ma(node_tree: bpy.types.ShaderNodeTree,
 
     if search_groups:
         for ma in materials:
-            for node in ma.node_tree.nodes:
-                if (node.bl_idname == "ShaderNodeGroup"
-                        and node.node_tree == node_tree):
+            if ma.node_tree is None:
+                continue
+            for node in all_nodes_of(ma.node_tree):
+                if getattr(node, "node_tree", None) == node_tree:
                     return ma
     return None
 
@@ -200,6 +201,30 @@ def safe_baker_node_getter(baker_node
                                     baker_node_id)
         return None
     return get_baker_node
+
+
+def all_nodes_of(node_tree: bpy.types.NodeTree,
+                 exclude_groups: Optional[typing.Iterable] = None
+                 ) -> typing.Generator[bpy.types.Node, None, None]:
+    """Returns a generator that yields each node from node_tree including
+    from any Group nodes or ShaderNodeCustomGroup instances (except those
+    with node trees in exclude_groups).
+    """
+    node_groups = set()
+
+    exclude_groups = set(exclude_groups) if exclude_groups else set()
+    exclude_groups.add(node_tree)
+
+    for node in node_tree.nodes:
+        if getattr(node, "node_tree", None) is not None:
+            node_groups.add(node.node_tree)
+        yield node
+
+    new_exclude_groups = node_groups | exclude_groups
+    for group in node_groups:
+        if group not in exclude_groups:
+            for node in all_nodes_of(group, new_exclude_groups):
+                yield node
 
 
 def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> bpy.types.MeshPaintMaskLayer:
