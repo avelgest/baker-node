@@ -46,8 +46,8 @@ def _prop_search(layout: bpy.types.UILayout, *args, **kwargs):
 target_types = [
    ('IMAGE_TEX_UV', "Image (UV)", "Bake to an image using a "
     "UV-mapped object"),
-   ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an axis-aligned "
-    "plane"),
+   ('IMAGE_TEX_PLANE', "Image (Plane)", "Bake to an image using an "
+    "axis-aligned plane"),
    ('COLOR_ATTRIBUTE', "Color Attribute",
     "Bake to a color attribute on a mesh"),
    ('VERTEX_MASK', "Sculpt Mask", "Bake to an object's sculpt "
@@ -123,7 +123,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
     margin: IntProperty(
         name="Margin",
-        description="Extends the baked result as a post process filter."
+        description="Extends the baked result as a post process filter. "
                     "-1 uses the value set in the Render Properties panel",
         default=-1, min=-1, soft_max=64, max=2**15 - 1,
         subtype='PIXEL'

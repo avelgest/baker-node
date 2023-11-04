@@ -56,7 +56,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
 
     background_baking: BoolProperty(
         name="Bake in Background",
-        description="Perform baking in the background if possible",
+        description="Perform baking in the background if supported",
         default=supports_background_baking,
         update=lambda self, _: self._background_baking_update()
     )

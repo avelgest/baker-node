@@ -530,8 +530,6 @@ class _BakerNodeBaker:
 
         self._set_bake_type_settings(cycles_props, bake_props)
         cycles_props.film_exposure = 1.0
-        # TODO add use_preview_adaptive_sampling/use_denoising to prefs?
-        # cycles_props.use_preview_adaptive_sampling = True  # TODO ???
         cycles_props.samples = self._samples
         cycles_props.use_denoising = False
 
