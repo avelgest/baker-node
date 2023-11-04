@@ -565,6 +565,7 @@ class TempChanges:
 
     def keep(self, name: str) -> None:
         """Keep the change made to an attribute.
+        Raises a KeyError if the attribute has not been modified.
         Params:
             name: The attribute name.
         """
@@ -578,15 +579,16 @@ class TempChanges:
 
     def revert(self, name: str) -> None:
         """Revert an attribute to its original value.
+        Raises a KeyError if the attribute has not been modified.
         Params:
             name: The attribute name.
         """
-        value = self._old_values.pop(name)
+        value = self._old_values[name]
 
         if value is _NOT_FOUND:
             delattr(self._obj, name)
         else:
-            setattr(name, value)
+            setattr(self._obj, name, value)
 
     def revert_all(self) -> None:
         """Revert all attributes to their original values."""
