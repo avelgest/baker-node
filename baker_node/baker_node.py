@@ -401,7 +401,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             # Try loading a cached preview
             if not previews.apply_cached_preview(self, current_hash, frame):
                 # If there is no suitable cached preview bake a new one
-                self.schedule_preview_bake()
+                with contextlib.suppress(self.ScheduleBakeError):
+                    self.schedule_preview_bake()
 
     def _target_type_update(self) -> None:
         internal_tree.relink_node_tree(self)
@@ -447,6 +448,15 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def _relink_node_tree(self) -> None:
         internal_tree.relink_node_tree(self)
 
+    def _pre_schedule_check(self) -> None:
+        """Check that the node's settings are valid for scheduling a
+        bake. Raises a ScheduleBakeError if they are invalid.
+        """
+
+        if self.bake_object is None and self.target_type != 'IMAGE_TEX_PLANE':
+            raise self.ScheduleBakeError("A mesh object must be selected or "
+                                         "set in order to bake")
+
     def schedule_bake(self) -> None:
         """Schedule this node for baking. If background baking is
         disabled then this will bake the node immediately. Otherwise
@@ -457,6 +467,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.bake_in_progress:
             raise self.ScheduleBakeError("A bake is already in progress for "
                                          "this node.")
+        # May raise a ScheduleBakeError
+        self._pre_schedule_check()
 
         if not self.bake_target:
             if get_prefs().auto_create_targets:
@@ -482,6 +494,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """
         if (self._can_display_preview
                 and not bake_queue.has_scheduled_preview_job(self)):
+
+            self._pre_schedule_check()
 
             bake_queue.add_bake_job(self,
                                     is_preview=True, frame=None,

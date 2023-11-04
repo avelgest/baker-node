@@ -87,6 +87,9 @@ class _BakerNodeBaker:
         # The object to use when baking
         self._object = baker_node.bake_object if obj is None else obj
 
+        if self._requires_object and self._object is None:
+            raise RuntimeError("No valid object for baking set or selected")
+
         # Node tree in which to place the bake target node
         self._target_tree = baker_node.id_data
 
@@ -311,14 +314,12 @@ class _BakerNodeBaker:
             if self._bake_type == 'IMAGE_TEX_PLANE':
                 self._setup_target_plane_preview()
             elif self._bake_type == 'IMAGE_TEX_UV':
-                self._deselect_all_nodes()
                 self._setup_target_image()
             else:
                 raise RuntimeError("Unsupported type for preview "
                                    f"{self._bake_type}")
 
         elif self._bake_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
-            self._deselect_all_nodes()
             self._setup_target_image()
 
         elif self._bake_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
@@ -357,6 +358,13 @@ class _BakerNodeBaker:
 
     def _setup_target_image(self) -> None:
         """Sets the baker node's target_image as the bake target."""
+        # Create the plane object used for baking
+        if self._bake_type == 'IMAGE_TEX_PLANE':
+            self._init_plane()
+
+        # Only the target node should be selected
+        self._deselect_all_nodes()
+
         # Node tree in which to place any nodes needed for setting the
         # bake target
         target_tree = self._target_tree
@@ -397,9 +405,6 @@ class _BakerNodeBaker:
         target_node.select = True
         target_tree.nodes.active = target_node
 
-        if self._bake_type == 'IMAGE_TEX_PLANE':
-            self._init_plane()
-
         get_target_tree = utils.safe_node_tree_getter(target_tree)
 
         def clean_up():
@@ -434,6 +439,7 @@ class _BakerNodeBaker:
             op_caller = utils.OpCaller(bpy.context,
                                        active=self._object,
                                        active_object=self._object,
+                                       object=self._object,
                                        selected_objects=[self._object])
 
             op_caller.call(bpy.ops.object.bake, exec_ctx,
@@ -567,9 +573,11 @@ class _BakerNodeBaker:
 
     def _set_material_to_node_tree(self, obj: bpy.types.Object) -> None:
         """Set obj to use the material that contains the baker node."""
-        ma = utils.get_node_tree_ma(self.baker_node.id_data,
-                                    objs=[self._object],
-                                    search_groups=True)
+        ma = utils.get_node_tree_ma(
+            node_tree=self.baker_node.id_data,
+            objs=None if self._object is None else [self._object],
+            search_groups=True)
+
         if ma is None:
             raise RuntimeError("Cannot find material for baker node")
         obj.active_material = ma
@@ -611,6 +619,13 @@ class _BakerNodeBaker:
         if margin < 0:
             return bpy.context.scene.render.bake.margin
         return margin
+
+    @property
+    def _requires_object(self) -> bool:
+        """True if an object must be selected or set on the baker node
+        for baking (depends on _bake_type).
+        """
+        return self._bake_type != 'IMAGE_TEX_PLANE'
 
     @property
     def _samples(self) -> int:
