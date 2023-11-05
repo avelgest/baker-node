@@ -236,7 +236,15 @@ class BKN_OT_refresh_preview(BakerNodeButtonBase, Operator):
         if baker_node is None:
             return {'CANCELLED'}
 
-        baker_node.schedule_preview_bake()
+        try:
+            baker_node.schedule_preview_bake()
+        except BakerNode.ScheduleBakeError as e:
+            error_msg = str(e)
+            self.report({'WARNING'}, error_msg)
+            baker_node.preview_error_str = error_msg
+            return {'CANCELLED'}
+
+        baker_node.preview_error_str = ""
         return {'FINISHED'}
 
 

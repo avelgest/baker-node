@@ -136,7 +136,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         type=bpy.types.Object,
         name="Object",
         description="The object to use when baking. If blank then the "
-                    "currently active object is used"
+                    "currently active object is used",
+        update=lambda self, _: self._invalidate_preview()
     )
 
     # samples defaults to get_prefs().default_samples
@@ -151,7 +152,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         name="Show Preview",
         description="Shows a preview for this node",
         default=False,
-        update=lambda self, _: self._show_bake_preview_update()
+        update=lambda self, _: self.preview_update_check()
     )
 
     sync: BoolProperty(
@@ -359,6 +360,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if prefs.preview_cache:
             previews.ensure_frame_check_handler()
 
+        preview_error_str = self.preview_error_str
+        if preview_error_str:
+            layout.label(icon='ERROR', text=preview_error_str)
+
         if prefs.automatic_preview_updates:
             previews.ensure_preview_check_timer(self)
         else:
@@ -402,8 +407,14 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             # Try loading a cached preview
             if not previews.apply_cached_preview(self, current_hash, frame):
                 # If there is no suitable cached preview bake a new one
-                with contextlib.suppress(self.ScheduleBakeError):
+                try:
                     self.schedule_preview_bake()
+                except self.ScheduleBakeError as e:
+                    error_str = str(e)
+                else:
+                    error_str = ""
+
+                self.preview_error_str = error_str
 
     def _target_type_update(self) -> None:
         internal_tree.relink_node_tree(self)
@@ -453,10 +464,16 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         """Check that the node's settings are valid for scheduling a
         bake. Raises a ScheduleBakeError if they are invalid.
         """
-
-        if self.bake_object is None and self.target_type != 'IMAGE_TEX_PLANE':
-            raise self.ScheduleBakeError("A mesh object must be selected or "
-                                         "set in order to bake")
+        if self.target_type != 'IMAGE_TEX_PLANE':
+            bake_object = self.bake_object
+            if bake_object is None:
+                raise self.ScheduleBakeError("A mesh object must be selected "
+                                             "or set in order to bake")
+            if self.target_type == 'IMAGE_TEX_UV':
+                if not any(ma_slot.material and ma_slot.material.node_tree
+                           for ma_slot in bake_object.material_slots):
+                    raise self.ScheduleBakeError("Object must have a "
+                                                 "node-based material")
 
     def schedule_bake(self) -> None:
         """Schedule this node for baking. If background baking is
@@ -758,16 +775,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                     or linked_soc.type == 'RGBA'
                     or getattr(linked_soc.node, "use_clamp", False))
 
-    def _show_bake_preview_update(self) -> None:
-        if self.show_bake_preview:
-            preview = self.preview
-            if preview is None or not any(preview.image_size):
-                self.schedule_preview_bake()
-
     @property
     def bake_object(self) -> Optional[bpy.types.Object]:
         """The object that should be active when this node is baked."""
         if self.specific_bake_object is not None:
+            if self.specific_bake_object.type != 'MESH':
+                return None
             return self.specific_bake_object
 
         active = bpy.context.active_object
@@ -898,6 +911,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     @property
     def preview(self) -> Optional[bpy.types.ImagePreview]:
         return previews.get_preview(self)
+
+    @property
+    def preview_error_str(self) -> str:
+        """Error message to display when a ScheduleBakeError has been
+        raised with a preview bake. Will silently fail to set if ID
+        classes cannot be written to in this context.
+        """
+        return self.get("preview_error_str", "")
+
+    @preview_error_str.setter
+    def preview_error_str(self, value: str):
+        with contextlib.suppress(AttributeError):
+            self["preview_error_str"] = value
 
     @property
     def preview_visible(self) -> bool:

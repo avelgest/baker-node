@@ -569,13 +569,18 @@ class _BakerNodeBaker:
 
     def _set_material_to_node_tree(self, obj: bpy.types.Object) -> None:
         """Set obj to use the material that contains the baker node."""
-        ma = utils.get_node_tree_ma(
-            node_tree=self.baker_node.id_data,
-            objs=None if self._object is None else [self._object],
-            search_groups=True)
-
+        ma = None
+        baker_tree = self.baker_node.id_data
+        if self._object is not None:
+            ma = utils.get_node_tree_ma(baker_tree, objs=[self._object],
+                                        search_groups=True)
         if ma is None:
-            raise RuntimeError("Cannot find material for baker node")
+            # Search all materials
+            ma = utils.get_node_tree_ma(baker_tree, objs=None,
+                                        search_groups=True)
+
+            if ma is None:
+                raise RuntimeError("Cannot find material for baker node")
         obj.active_material = ma
 
     @property
