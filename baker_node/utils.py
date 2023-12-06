@@ -227,6 +227,16 @@ def all_nodes_of(node_tree: bpy.types.NodeTree,
                 yield node
 
 
+def can_write_id_props(id_data: bpy.types.ID) -> bool:
+    """Returns whether id_props can currently be written to for id_data."""
+    try:
+        id_data["can_write_id_props"] = 1
+    except AttributeError:
+        return False
+    del id_data["can_write_id_props"]
+    return True
+
+
 def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> bpy.types.MeshPaintMaskLayer:
     """Ensures that mesh has a sculpt mask (vertex paint mask).
     This may invalidate any Python variables that refer to mesh data

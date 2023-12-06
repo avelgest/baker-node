@@ -252,7 +252,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             mesh = None
 
         if self.target_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
-            image_node = internal_tree.get_target_image_node(self, True)
+            image_node = internal_tree.get_target_image_node(self, False)
             if image_node is not None:
                 layout.template_ID(image_node, "image",
                                    new="image.new",
@@ -286,10 +286,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
                 if image.source == 'SEQUENCE':
                     image_user = self.image_user
-                    col = layout.column(align=True)
-                    col.prop(image_user, "frame_duration")
-                    col.prop(image_user, "frame_start")
-                    col.prop(image_user, "frame_offset")
+                    if image_user is not None:
+                        col = layout.column(align=True)
+                        col.prop(image_user, "frame_duration")
+                        col.prop(image_user, "frame_start")
+                        col.prop(image_user, "frame_offset")
 
                     if not image.filepath_raw:
                         layout.label(icon='ERROR',
@@ -862,14 +863,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return 'IMAGE_TEXTURES'
 
     @property
-    def image_user(self) -> bpy.types.ImageUser:
+    def image_user(self) -> Optional[bpy.types.ImageUser]:
         """The bpy.types.ImageUser used when the bake target is an
         image sequence.
         """
-        image_node = internal_tree.get_target_image_node(self, True)
+        image_node = internal_tree.get_target_image_node(self, False)
         if image_node is None:
-            internal_tree.rebuild_node_tree(self)
-            image_node = internal_tree.get_target_image_node(self, True)
+            if utils.can_write_id_props(self):
+                image_node = internal_tree.get_target_image_node(self, True)
+            else:
+                return None
+
             if image_node is None:
                 raise RuntimeError("No target image node after baker node "
                                    "tree rebuild")
