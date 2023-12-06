@@ -966,13 +966,27 @@ def add_bkn_node_menu_func(self, context):
     """Button to add a new baker node. Appended to the Output category
     of the Add menu in the Shader Editor.
     """
-    self.layout.separator()
     # Only show in object shader node trees
     if getattr(context.space_data, "shader_type", None) == 'OBJECT':
+        self.layout.separator()
+
         op_props = self.layout.operator("node.add_node",
                                         text="Baker")
         op_props.type = BakerNode.bl_idname
         op_props.use_transform = True
+
+
+def _new_baker_node_btn_menu() -> type:
+    """The menu to which to add the add_bkn_node_menu_func to.
+    Should be the menu described by bl_info["location"].
+    """
+    if hasattr(bpy.types, "NODE_MT_category_SH_NEW_OUTPUT"):
+        # Blender < 4.0
+        return bpy.types.NODE_MT_category_SH_NEW_OUTPUT
+    elif hasattr(bpy.types, "NODE_MT_category_shader_output"):
+        return bpy.types.NODE_MT_category_shader_output
+    else:
+        return bpy.types.NODE_MT_node
 
 
 def bkn_node_context_menu_func(self, context):
@@ -1107,12 +1121,14 @@ if "_register_node" not in globals():
 def register():
     _register_node()
     bpy.utils.register_class(BakerNodeSettingsPanel)
-    bpy.types.NODE_MT_category_SH_NEW_OUTPUT.append(add_bkn_node_menu_func)
+
+    _new_baker_node_btn_menu().append(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.append(bkn_node_context_menu_func)
 
 
 def unregister():
-    bpy.types.NODE_MT_category_SH_NEW_OUTPUT.remove(add_bkn_node_menu_func)
+    _new_baker_node_btn_menu().remove(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.remove(bkn_node_context_menu_func)
+
     bpy.utils.unregister_class(BakerNodeSettingsPanel)
     _unregister_node()
