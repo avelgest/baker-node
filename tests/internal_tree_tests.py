@@ -7,6 +7,7 @@ from collections import namedtuple
 import bpy
 
 from ..baker_node import internal_tree
+from ..baker_node import utils
 from ..baker_node.baker_node import BakerNode
 
 
@@ -52,21 +53,26 @@ class TestInternalTree(unittest.TestCase):
     def test_check_sockets(self):
         node_tree = self.baker_node.node_tree
 
+        def get_sockets(in_out: str):
+            return utils.get_node_tree_sockets(node_tree, in_out)
+
         # Store the name/type of node_tree's current inputs and outputs
         OrigSocket = namedtuple("OrigSocket", ("name", "type"))
 
-        orig_inputs = [OrigSocket(x.name, x.type) for x in node_tree.inputs]
-        orig_outputs = [OrigSocket(x.name, x.type) for x in node_tree.outputs]
+        orig_inputs = [OrigSocket(x.name, x.bl_socket_idname)
+                       for x in get_sockets('INPUT')]
+        orig_outputs = [OrigSocket(x.name, x.bl_socket_idname)
+                        for x in get_sockets('OUTPUT')]
 
         def assert_sockets_same(sockets, orig):
             self.assertEqual(len(sockets), len(orig))
             for socket, orig_socket in zip(sockets, orig):
                 self.assertEqual(socket.name, orig_socket.name)
-                self.assertEqual(socket.type, orig_socket.type)
+                self.assertEqual(socket.bl_socket_idname, orig_socket.type)
 
         def assert_sockets_equal_orig():
-            assert_sockets_same(node_tree.inputs, orig_inputs)
-            assert_sockets_same(node_tree.outputs, orig_outputs)
+            assert_sockets_same(get_sockets('INPUT'), orig_inputs)
+            assert_sockets_same(get_sockets('OUTPUT'), orig_outputs)
 
         assert_sockets_equal_orig()
 
@@ -76,13 +82,17 @@ class TestInternalTree(unittest.TestCase):
         assert_sockets_equal_orig()
 
         # Test removing added sockets
-        node_tree.inputs.new("NodeSocketFloat", "Test")
-        node_tree.outputs.new("NodeSocketFloat", "Test")
+        utils.new_node_tree_socket(node_tree, "Test", 'INPUT',
+                                   "NodeSocketFloat")
+        utils.new_node_tree_socket(node_tree, "Test", 'OUTPUT',
+                                   "NodeSocketFloat")
+
         internal_tree.check_sockets(self.baker_node)
         assert_sockets_equal_orig()
 
         # Test restoring deleted sockets
-        node_tree.inputs.remove(node_tree.inputs[0])
-        node_tree.outputs.remove(node_tree.outputs[0])
+        utils.remove_node_tree_socket(node_tree, get_sockets('INPUT')[0])
+        utils.remove_node_tree_socket(node_tree, get_sockets('OUTPUT')[0])
+
         internal_tree.check_sockets(self.baker_node)
         assert_sockets_equal_orig()

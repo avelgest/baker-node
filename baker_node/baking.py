@@ -184,7 +184,8 @@ class _BakerNodeBaker:
         output_name = self.OUT_SOCKET_NAME
         output_socket = baker_node.outputs.get(output_name)
         if output_socket is None:
-            inner_tree.outputs.new("NodeSocketShader", output_name)
+            utils.new_node_tree_socket(inner_tree, output_name,
+                                       'OUTPUT', "NodeSocketShader")
             output_socket = baker_node.outputs[output_name]
             output_socket.hide = True
 
@@ -209,9 +210,10 @@ class _BakerNodeBaker:
             # Remove the added output socket
             inner_tree = inner_tree_getter()
             if inner_tree is not None:
-                output_socket = inner_tree.outputs.get(output_name)
+                output_socket = utils.get_node_tree_socket(
+                                        inner_tree, output_name, 'OUTPUT')
                 if output_socket is not None:
-                    inner_tree.outputs.remove(output_socket)
+                    utils.remove_node_tree_socket(inner_tree, output_socket)
 
         self._exit_stack.callback(clean_up)
 

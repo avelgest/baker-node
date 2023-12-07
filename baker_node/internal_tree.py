@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import itertools as it
 import typing
 import warnings
 
@@ -8,6 +9,9 @@ from typing import Optional, Union
 import bpy
 
 from bpy.types import ShaderNode
+
+from . import preferences
+from . import utils
 
 
 class NodeNames:
@@ -170,8 +174,8 @@ class _TreeBuilder:
 
     @classmethod
     def _check_sockets(cls,
-                       sockets: Union[bpy.types.NodeTreeInputs,
-                                      bpy.types.NodeTreeOutputs],
+                       sockets: Union["bpy.types.NodeTreeInputs",
+                                      "bpy.types.NodeTreeOutputs"],
                        template: typing.Sequence[tuple[str, str]]) -> None:
         for idx, tup in enumerate(template):
             name, socket_type = tup
@@ -183,8 +187,46 @@ class _TreeBuilder:
                 sockets.move(existing_idx, idx)
 
         # Remove sockets that are not found in template
-        for socket in reversed(list(sockets[len(template): len(sockets)])):
+        for socket in reversed(list(sockets[len(template):])):
             sockets.remove(socket)
+
+    @classmethod
+    def _check_interface(cls,
+                         interface: "bpy.types.NodeTreeInterface",
+                         in_template: typing.Sequence[tuple[str, str]],
+                         out_template: typing.Sequence[tuple[str, str]]
+                         ) -> None:
+        """Used instead of _check_sockets for Blender 4.0+"""
+        items_tree = interface.items_tree
+
+        names_in_out = ({x[0]: 'INPUT' for x in in_template}
+                        | {x[0]: 'OUTPUT' for x in out_template})
+
+        for item in reversed(list(items_tree)):
+            name = item.name
+
+            if (item.item_type != 'SOCKET'
+                    or item.in_out != names_in_out.get(name, None)):
+                # Remove any items not named in the template.
+                # Also remove any items with a correct name but
+                # incorrect values for item_type or in_out
+                interface.remove(item)
+            else:
+                # Remove the name from names_in_out so that any other item
+                # with this name is removed.
+                names_in_out.pop(name)
+
+        # Add missing sockets and ensure all sockets have the correct position
+        for idx, tup in enumerate(it.chain(out_template, in_template)):
+            name, socket_type = tup
+
+            socket_item = items_tree.get(name)
+            if socket_item is None:
+                socket_item = interface.new_socket(name=name,
+                                                   in_out=names_in_out[name],
+                                                   socket_type=socket_type)
+            if socket_item.position != idx:
+                interface.move(socket_item, idx)
 
     def check_sockets(self) -> None:
         """Checks that the node_tree has the correct inputs and outputs
@@ -193,13 +235,17 @@ class _TreeBuilder:
         """
         node_tree = self.baker_node.node_tree
 
-        # "Baked" changed to "Baked Color" in v0.7
-        if ("Baked" in node_tree.outputs
-                and "Baked Color" not in node_tree.outputs):
-            node_tree.outputs["Baked"].name = "Baked Color"
+        if preferences.node_tree_interfaces:
+            self._check_interface(node_tree.interface,
+                                  self._INPUT_TEMPLATE, self._OUTPUT_TEMPLATE)
+        else:
+            # "Baked" changed to "Baked Color" in v0.7
+            if ("Baked" in node_tree.outputs
+                    and "Baked Color" not in node_tree.outputs):
+                node_tree.outputs["Baked"].name = "Baked Color"
 
-        self._check_sockets(node_tree.inputs, self._INPUT_TEMPLATE)
-        self._check_sockets(node_tree.outputs, self._OUTPUT_TEMPLATE)
+            self._check_sockets(node_tree.inputs, self._INPUT_TEMPLATE)
+            self._check_sockets(node_tree.outputs, self._OUTPUT_TEMPLATE)
 
     def create_node_tree(self) -> None:
         """Creates a node tree for this instance's baker_node. Raises a
@@ -218,7 +264,7 @@ class _TreeBuilder:
         self.check_sockets()
 
         # Hide the default values of all inputs
-        for in_socket in node_tree.inputs:
+        for in_socket in utils.get_node_tree_sockets(node_tree, 'INPUT'):
             in_socket.hide_value = True
 
         return node_tree

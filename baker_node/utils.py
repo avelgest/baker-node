@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import contextlib
 import functools
 import importlib
 import itertools as it
@@ -14,12 +15,15 @@ from typing import Any, Callable, Collection, List, Optional, Union
 import bmesh
 import bpy
 
-from bpy.types import ShaderNodeTree
+from bpy.types import NodeTree, ShaderNodeTree
 from mathutils import Vector
 
 from . import preferences
 
 _NOT_FOUND = object()
+
+NodeTreeSocket = Union["bpy.types.NodeSocketInterface",
+                       "bpy.types.NodeTreeInterfaceSocket"]
 
 
 def get_bake_queue():
@@ -203,7 +207,85 @@ def safe_baker_node_getter(baker_node
     return get_baker_node
 
 
-def all_nodes_of(node_tree: bpy.types.NodeTree,
+def get_node_tree_socket(node_tree: NodeTree, name: str, in_out: str
+                         ) -> Optional[NodeTreeSocket]:
+    """Returns an interface socket with name 'name' from node_tree. Compatible
+    with both Blender 3 and Blender 4.
+    Params:
+        node_tree: A NodeTree to get the interface socket from.
+        name: The name of the socket to find.
+        in_out: str in {'INPUT', 'OUTPUT'} whether to look for an input
+            or output interface socket.
+    Returns:
+        A NodeSocketInterface or NodeTreeInterfaceSocket if the socket
+        was found. Otherwise None.
+    """
+    if in_out not in ('INPUT', 'OUTPUT'):
+        raise ValueError("in_out must either 'INPUT' or 'OUTPUT'")
+
+    if preferences.node_tree_interfaces:
+        return next((x for x in node_tree.interface.items_tree
+                     if x.name == name and x.item_type == 'SOCKET'
+                     and x.in_out == in_out),
+                    None)
+    else:
+        collection = (node_tree.outputs
+                      if in_out == 'OUTPUT' else node_tree.inputs)
+        return collection.get(name)
+
+
+def get_node_tree_sockets(node_tree: NodeTree,
+                          in_out: str) -> list[NodeTreeSocket]:
+    """Returns a list of the inputs or outputs of node_tree.
+    in_out should be a string in {'INPUT', 'OUTPUT'}.
+    Compatible with both Blender 3 and Blender 4.
+    """
+    if in_out not in ('INPUT', 'OUTPUT'):
+        raise ValueError("in_out must either 'INPUT' or 'OUTPUT'")
+    if preferences.node_tree_interfaces:
+        return [x for x in node_tree.interface.items_tree
+                if x.item_type == 'SOCKET' and x.in_out == in_out]
+    return list(node_tree.outputs if in_out == 'OUTPUT'
+                else node_tree.inputs)
+
+
+def new_node_tree_socket(node_tree: NodeTree, name: str, in_out: str,
+                         socket_type: str, description: str = "",
+                         parent=None) -> NodeTreeSocket:
+    """Creates and returns an interface socket on node_tree. Compatible
+    with both Blender 3 and Blender 4. Arguments are the same as in
+    NodeTreeInterface.new_socket.
+    description and parent are ignored in Blender 3.
+    """
+    if in_out not in ('INPUT', 'OUTPUT'):
+        raise ValueError("in_out must either 'INPUT' or 'OUTPUT'")
+
+    if preferences.node_tree_interfaces:
+        return node_tree.interface.new_socket(name, description=description,
+                                              in_out=in_out,
+                                              socket_type=socket_type,
+                                              parent=parent)
+    else:
+        sockets = node_tree.outputs if in_out == 'OUTPUT' else node_tree.inputs
+        return sockets.new(socket_type, name)
+
+
+def remove_node_tree_socket(node_tree: NodeTree,
+                            socket: NodeTreeSocket) -> None:
+    """Removes an interface socket from node_tree. Does nothing if the
+    socket is not found. Compatible with both Blender 3 and Blender 4.
+    """
+    if preferences.node_tree_interfaces:
+        if not socket.item_type == 'SOCKET':
+            raise TypeError(f"{socket.item_type} item given. Expected SOCKET")
+        node_tree.interface.remove(socket)
+    else:
+        sockets = node_tree.outputs if socket.is_output else node_tree.inputs
+        with contextlib.suppress(RuntimeError):
+            sockets.remove(socket)
+
+
+def all_nodes_of(node_tree: NodeTree,
                  exclude_groups: Optional[typing.Iterable] = None
                  ) -> typing.Generator[bpy.types.Node, None, None]:
     """Returns a generator that yields each node from node_tree including

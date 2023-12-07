@@ -48,6 +48,8 @@ class TestUtils(unittest.TestCase):
 
     def tearDown(self):
         self.node_tree.nodes.clear()
+        if hasattr(self.node_tree, "interface"):
+            self.node_tree.interface.clear()
 
     def test_get_bake_queue(self):
         bake_queue = utils.get_bake_queue()
@@ -260,9 +262,12 @@ class TestUtils(unittest.TestCase):
         nodes = node_group.nodes
         links = node_group.links
 
-        node_group.inputs.new("NodeSocketFloat", "in1")
-        node_group.outputs.new("NodeSocketColor", "out1")
-        node_group.outputs.new("NodeSocketColor", "out2")
+        utils.new_node_tree_socket(node_group, "in1",
+                                   'INPUT', "NodeSocketFloat")
+        utils.new_node_tree_socket(node_group, "out1",
+                                   'OUTPUT', "NodeSocketColor")
+        utils.new_node_tree_socket(node_group, "out2",
+                                   'OUTPUT', "NodeSocketColor")
 
         nodes.new("NodeGroupOutput")  # Test with unused Group Output
         group_out = nodes.new("NodeGroupOutput")
@@ -277,6 +282,56 @@ class TestUtils(unittest.TestCase):
 
         return [utils.get_linked_nodes(group_out.inputs[0]),
                 utils.get_linked_nodes(group_out.inputs[1])]
+
+    def test_node_tree_socket_fncs(self):
+        """Tests get_node_tree_socket, get_node_tree_sockets,
+        new_node_tree_socket and remove_node_tree_socket.
+        """
+        nt = self.node_tree
+
+        create_socket = utils.new_node_tree_socket
+        get_socket = utils.get_node_tree_socket
+        get_sockets = utils.get_node_tree_sockets
+        remove_socket = utils.remove_node_tree_socket
+
+        basename = "Test"
+
+        def is_output(socket):
+            if preferences.node_tree_interfaces:
+                return socket.in_out == 'OUTPUT'
+            return socket.is_output
+
+        self.assertIsNone(get_socket(nt, basename, 'INPUT'))
+        self.assertIsNone(get_socket(nt, basename, 'OUTPUT'))
+        self.assertFalse(get_sockets(nt, 'INPUT'))
+        self.assertFalse(get_sockets(nt, 'OUTPUT'))
+
+        in_socket = create_socket(nt, basename, 'INPUT', "NodeSocketFloat")
+        self.assertEqual(len(get_sockets(nt, 'INPUT')), 1)
+
+        out_socket = create_socket(nt, basename, 'OUTPUT', "NodeSocketColor")
+        self.assertEqual(len(get_sockets(nt, 'OUTPUT')), 1)
+
+        self.assertTrue(in_socket.name == basename)
+        self.assertFalse(is_output(in_socket))
+        self.assertEqual(in_socket.bl_socket_idname, "NodeSocketFloat")
+
+        self.assertTrue(out_socket.name == basename)
+        self.assertTrue(is_output(out_socket))
+        self.assertEqual(out_socket.bl_socket_idname, "NodeSocketColor")
+
+        create_socket(nt, f"{basename}2", 'INPUT', "NodeSocketFloat")
+        create_socket(nt, f"{basename}2", 'INPUT', "NodeSocketFloat")
+
+        self.assertEqual(get_socket(nt, basename, "INPUT"), in_socket)
+        self.assertEqual(get_socket(nt, basename, "OUTPUT"), out_socket)
+
+        remove_socket(nt, in_socket)
+        self.assertIsNone(get_socket(nt, basename, "INPUT"))
+        self.assertIsNotNone(get_socket(nt, basename, "OUTPUT"))
+
+        remove_socket(nt, out_socket)
+        self.assertIsNone(get_socket(nt, basename, "OUTPUT"))
 
     def test_sequence_img_path(self):
         sequence_img_path = utils.sequence_img_path

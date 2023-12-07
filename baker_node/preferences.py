@@ -9,6 +9,7 @@ from .. import __package__ as package_name
 supports_background_baking = bpy.app.version >= (3, 3)
 supports_color_attributes = ("color_attributes"
                              in bpy.types.Mesh.bl_rna.properties)
+node_tree_interfaces = bpy.app.version >= (4,)
 
 
 class BakerNodePrefs(bpy.types.AddonPreferences):
@@ -185,6 +186,13 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     def automatic_preview_updates(self) -> bool:
         """True if node previews should be updated automatically."""
         return self.preview_update_interval >= 0.05
+
+    @property
+    def node_tree_interfaces(self) -> bool:
+        """True if node tree interfaces should be used instead of
+        NodeTree.inputs and NodeTree.outputs (Blender 4.0+).
+        """
+        return node_tree_interfaces
 
     @property
     def supports_background_baking(self) -> bool:
