@@ -615,12 +615,21 @@ class _BakerNodeBaker:
     @property
     def _margin(self) -> int:
         """The margin to use when baking to images."""
+        baker_node = self.baker_node
+        margin = baker_node.margin
+
+        if margin < 0:
+            margin = bpy.context.scene.render.bake.margin
+
         if self.is_preview:
+            if (baker_node.target_type == 'IMAGE_TEX_UV'
+                    and baker_node.target_image is not None):
+                preview_size = get_prefs().preview_size
+                full_size = max(1, *baker_node.target_image.size)
+
+                return int(margin * preview_size / full_size)
             return 0
 
-        margin = self.baker_node.margin
-        if margin < 0:
-            return bpy.context.scene.render.bake.margin
         return margin
 
     @property
