@@ -374,6 +374,7 @@ class _BakerNodeBaker:
             display_device = bpy.context.scene.display_settings.display_device
             target = bpy.data.images.new(_TMP_TARGET_NAME,
                                          target_size, target_size,
+                                         alpha=self._preview_alpha,
                                          is_data=display_device == 'None')
             assert target.name == _TMP_TARGET_NAME
 
@@ -631,6 +632,12 @@ class _BakerNodeBaker:
             return 0
 
         return margin
+
+    @property
+    def _preview_alpha(self) -> bool:
+        """True if an image preview should contain an alpha channel."""
+        target_image = self.baker_node.target_image
+        return target_image is None or utils.image_has_alpha(target_image)
 
     @property
     def _requires_object(self) -> bool:
