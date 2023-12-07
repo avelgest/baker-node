@@ -5,11 +5,10 @@ bl_info = {
     "description": "Adds a node to the shader editor that bakes its "
                    "input with a single click",
     "author": "Avelgest",
-    "version": (0, 8, 1),
+    "version": (0, 8, 2),
     "blender": (3, 0, 0),
     "category": "Node",
     "location": "Shader Editor > Add > Output > Baker",
-    "warning": "Beta version",
     "doc_url": "https://github.com/avelgest/baker-node/wiki"
 }
 
