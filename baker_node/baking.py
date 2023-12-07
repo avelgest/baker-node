@@ -747,9 +747,10 @@ class _BakerNodePostprocess:
 
             # Non-numpy version (slow)
             for i, x in enumerate(color_data):
-                if i & 0b11:  # Skip indices that are multiples of 4
-                    color_data[i] = x**exponent
-            return color_data
+                if i & 0b11 == 3:  # Skip every 4th index
+                    continue
+                color_data[i] = x**exponent
+
         return color_data
 
     def _postprocess_preview_color_attr(self
