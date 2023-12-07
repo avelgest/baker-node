@@ -11,6 +11,7 @@ import warnings
 from typing import Any
 
 import bpy
+import mathutils
 
 from ..baker_node import preferences
 from ..baker_node.baker_node import BakerNode
@@ -175,6 +176,20 @@ class TestBakerNode(unittest.TestCase):
             baker_node.target_attribute = target.name
         else:
             raise TypeError(f"Unsupported target type: {type(target)}")
+
+    @classmethod
+    def _linear_to_srgb(cls, color) -> tuple:
+        if len(color) not in (3, 4):
+            raise ValueError("Expected color to have length of 3 or 4")
+        linear = mathutils.Color(color[:3])
+
+        if hasattr(linear, "from_scene_linear_to_srgb"):
+            srgb = tuple(linear.from_scene_linear_to_srgb())
+        else:
+            srgb = tuple(x ** (1/2.2) for x in color[:3])
+        if len(color) == 4:
+            return srgb + (color[-1], )
+        return srgb
 
     def test_1_init(self):
         baker_node = self._new_baker_node("init_test")
@@ -650,6 +665,7 @@ class TestBakerNode(unittest.TestCase):
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
     def test_5_4_preview_bake(self, target_type: str = 'IMAGE_TEX_PLANE'):
         prefs = preferences.get_prefs()
+        bake_color = (0.2, 0.5, 0.8, 1.0)
 
         baker_node = self._new_baker_node("preview_bake_test")
         baker_node.target_type = target_type
@@ -662,20 +678,22 @@ class TestBakerNode(unittest.TestCase):
         self.assertEqual(len(preview.image_pixels_float), 0)
 
         value_node = self.node_tree.nodes.new("ShaderNodeRGB")
-        value_node.outputs[0].default_value = (0.2, 0.5, 0.8, 1.0)
+        value_node.outputs[0].default_value = bake_color
         self.node_tree.links.new(baker_node.inputs[0], value_node.outputs[0])
 
         # TODO Test 'sRGB' as display_device and when use_numpy == True
         with _temp_set(bpy.context.scene.display_settings,
-                       "display_device", 'None'):
+                       "display_device", 'sRGB'):
             baker_node.schedule_preview_bake()
 
         preview = baker_node.preview
         expected_size = 4 * prefs.preview_size ** 2
+        expected_color = self._linear_to_srgb(bake_color)
+
         self.assertEqual(len(preview.image_pixels_float), expected_size)
 
         for x, y in zip(preview.image_pixels_float,
-                        it.cycle([0.2, 0.5, 0.8, 1.0])):
+                        it.cycle(expected_color)):
             self.assertAlmostEqual(x, y, delta=0.02)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")
@@ -693,16 +711,18 @@ class TestBakerNode(unittest.TestCase):
         self.node_tree.links.new(baker_node.inputs[0], alpha_node.outputs[0])
 
         with _temp_set(bpy.context.scene.display_settings,
-                       "display_device", 'None'):
+                       "display_device", 'sRGB'):
             baker_node.schedule_preview_bake()
 
         preview = baker_node.preview
         expected_size = 4 * preferences.get_prefs().preview_size ** 2
+        expected_color = self._linear_to_srgb(color)
+
         self.assertEqual(len(preview.image_pixels_float), expected_size)
 
         # For now just check that alpha == 1.0 and that the RGB values
         # are different from color_node
-        for x, y in zip(preview.image_pixels_float, it.cycle(color)):
+        for x, y in zip(preview.image_pixels_float, it.cycle(expected_color)):
             if y == 1.0:
                 self.assertAlmostEqual(x, 1.0)
             else:
