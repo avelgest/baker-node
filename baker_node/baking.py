@@ -73,6 +73,9 @@ class _BakerNodeBaker:
     # an external Material Output node.
     OUT_SOCKET_NAME = "Bake Shader"
 
+    # The name of the temporary plane used for Image (Plane) baking
+    TEMP_PLANE_NAME = ".Baker Node Plane"
+
     def __init__(self, baker_node,
                  obj: Optional[bpy.types.Object] = None,
                  is_preview: bool = False,
@@ -284,11 +287,12 @@ class _BakerNodeBaker:
 
     def _init_plane(self) -> None:
         """Initializes the plane used for the Image (Plane) target type."""
+
         # Create the plane mesh
         mesh = self._init_plane_mesh("Baker Node Plane", 2, 2, calc_uvs=True)
 
         # Add the plane object
-        plane = bpy.data.objects.new(".Baker Node Plane", mesh)
+        plane = bpy.data.objects.new(self.TEMP_PLANE_NAME, mesh)
         bpy.context.scene.collection.objects.link(plane)
 
         # Set the plane to use the material containing the baker node
@@ -301,9 +305,11 @@ class _BakerNodeBaker:
         plane_name = plane.name
 
         def clean_up():
-            plane = bpy.data.objects.get(plane_name)
+            # Delete the plane in post_bake_clean_up to prevent crashes
+            plane = bpy.context.scene.collection.objects.get(plane_name)
             if plane is not None:
-                bpy.data.meshes.remove(plane.data)
+                bpy.context.scene.collection.objects.unlink(plane)
+
         self._exit_stack.callback(clean_up)
 
     def _setup_target(self) -> None:
@@ -931,6 +937,14 @@ def post_bake_clean_up(baker_node) -> None:
     tmp_target = bpy.data.images.get(_TMP_TARGET_NAME)
     if tmp_target is not None:
         bpy.data.images.remove(tmp_target)
+
+    # Delete the temporary plane used for Image (Plane) baking
+    tmp_plane = bpy.data.objects.get(_BakerNodeBaker.TEMP_PLANE_NAME)
+    if tmp_plane is not None:
+        if tmp_plane.type == 'MESH':
+            bpy.data.meshes.remove(tmp_plane.data)
+        else:
+            bpy.data.objects.remove(tmp_plane)
 
 
 def perform_baker_node_bake(baker_node,
