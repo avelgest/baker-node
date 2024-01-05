@@ -129,6 +129,12 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         subtype='PIXEL'
     )
 
+    save_on_bake: BoolProperty(
+        name="Save on Bake",
+        description="",
+        default=False
+    )
+
     # N.B. A python property is used for target_image to prevent
     # increasing the images user count.
 
@@ -627,6 +633,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             self.cancel_bake()
             raise e
 
+        if (self.save_on_bake
+                and self.cycles_target_enum == 'IMAGE_TEXTURES'
+                and not self.is_target_image_seq):
+            self._try_save_target_image()
+
         # If there is only one job left then this job is for the final
         # frame. So load the new image sequence frames from disk.
         if (self.is_target_image_seq
@@ -782,6 +793,18 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         return not (linked_soc.name.lower() == "fac"
                     or linked_soc.type == 'RGBA'
                     or getattr(linked_soc.node, "use_clamp", False))
+
+    def _try_save_target_image(self, set_error_str: bool = True) -> None:
+        target_image = self.target_image
+        if (target_image is not None
+                and (target_image.filepath or target_image.packed_file)):
+            try:
+                target_image.save()
+            except (OSError, RuntimeError) as e:
+                error_msg = str(e).split("\n", 1)[0]
+                if set_error_str:
+                    self._bake_error_str = error_msg
+                warnings.warn(f"Error saving image:\n{e}")
 
     @property
     def bake_object(self) -> Optional[bpy.types.Object]:
@@ -1067,6 +1090,9 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
             image = baker_node.target_image
             if image is None:
                 return
+
+            if not baker_node.is_target_image_seq:
+                layout.prop(baker_node, "save_on_bake")
 
             layout.context_pointer_set("image", image)
             layout.separator(factor=1.0)
