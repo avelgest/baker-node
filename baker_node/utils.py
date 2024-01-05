@@ -221,7 +221,7 @@ def get_node_tree_socket(node_tree: NodeTree, name: str, in_out: str
         was found. Otherwise None.
     """
     if in_out not in ('INPUT', 'OUTPUT'):
-        raise ValueError("in_out must either 'INPUT' or 'OUTPUT'")
+        raise ValueError("in_out must be either 'INPUT' or 'OUTPUT'")
 
     if preferences.node_tree_interfaces:
         return next((x for x in node_tree.interface.items_tree
@@ -241,7 +241,7 @@ def get_node_tree_sockets(node_tree: NodeTree,
     Compatible with both Blender 3 and Blender 4.
     """
     if in_out not in ('INPUT', 'OUTPUT'):
-        raise ValueError("in_out must either 'INPUT' or 'OUTPUT'")
+        raise ValueError("in_out must be either 'INPUT' or 'OUTPUT'")
     if preferences.node_tree_interfaces:
         return [x for x in node_tree.interface.items_tree
                 if x.item_type == 'SOCKET' and x.in_out == in_out]
@@ -258,7 +258,7 @@ def new_node_tree_socket(node_tree: NodeTree, name: str, in_out: str,
     description and parent are ignored in Blender 3.
     """
     if in_out not in ('INPUT', 'OUTPUT'):
-        raise ValueError("in_out must either 'INPUT' or 'OUTPUT'")
+        raise ValueError("in_out must be either 'INPUT' or 'OUTPUT'")
 
     if preferences.node_tree_interfaces:
         return node_tree.interface.new_socket(name, description=description,

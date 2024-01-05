@@ -332,6 +332,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         row.alignment = 'RIGHT'
         row.prop(self, "sync")
 
+        if self._bake_error_str:
+            layout.label(icon='ERROR', text=self._bake_error_str)
+
         self._draw_preview(layout)
 
     def draw_buttons_ext(self, context, layout):
@@ -562,6 +565,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         attempts the bake immediately. If background is True then the
         bake will run in the background (if supported).
         """
+        self._bake_error_str = ""
 
         if background and not get_prefs().supports_background_baking:
             background = False
@@ -614,8 +618,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
 
         try:
             baking.postprocess_baker_node(self, obj)
-        # TODO Show warning in UI instead of raising when catching
-        # PostProcessError
+        except baking.PostProcessError as e:
+            self.cancel_bake()
+            self._bake_error_str = str(e).split("\n", 1)[0]
+            warnings.warn(e)
+            return
         except Exception as e:
             self.cancel_bake()
             raise e
@@ -861,6 +868,17 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self.target_type in ('COLOR_ATTRIBUTE', 'VERTEX_MASK'):
             return 'VERTEX_COLORS'
         return 'IMAGE_TEXTURES'
+
+    @property
+    def _bake_error_str(self) -> str:
+        return self.get("bake_error_str", "")
+
+    @_bake_error_str.setter
+    def _bake_error_str(self, value: str):
+        try:
+            self["bake_error_str"] = str(value)
+        except AttributeError:
+            warnings.warn("Unable to set Baker node 'bake_error_str' idprop")
 
     @property
     def image_user(self) -> Optional[bpy.types.ImageUser]:
