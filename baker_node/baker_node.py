@@ -351,6 +351,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         layout.separator(factor=2.0)
         BakerNodeSettingsPanel.draw_for(self, context, layout)
 
+        layout.separator(factor=1.0)
+        layout.menu("BKN_MT_add_node_setup")
+
     def _draw_preview(self, layout) -> None:
         if not self._can_display_preview:
             return
@@ -1034,6 +1037,19 @@ def _new_baker_node_btn_menu() -> type:
         return bpy.types.NODE_MT_node
 
 
+class BKN_MT_add_baker_setup(bpy.types.Menu):
+    """Menu for adding additional nodes that affect the input(s) or
+    output of a Baker node. Used in the Baker node context menu.
+    """
+    bl_label = "Add Baker Set-up"
+    bl_description = ("Add additional nodes to affect the input or output of "
+                      "the active Baker")
+
+    def draw(self, _context):
+        self.layout.operator("node.bkn_masking_setup", text="Masking")
+        self.layout.operator("node.bkn_input_to_tangent_space")
+
+
 def bkn_node_context_menu_func(self, context):
     """Adds items to the Node Editor context menu when a BakerNode is
     selected.
@@ -1069,8 +1085,7 @@ def bkn_node_context_menu_func(self, context):
             layout.operator("node.bkn_refresh_preview")
 
         layout.separator()
-        layout.operator("node.bkn_masking_setup")
-        layout.operator("node.bkn_input_to_tangent_space")
+        layout.menu("BKN_MT_add_node_setup")
 
 
 class BakerNodeSettingsPanel(bpy.types.Panel):
@@ -1146,7 +1161,7 @@ def _register_baker_node_factory() -> tuple[Callable[[], None],
             is_registered = True
 
     def unregister_node():
-        """Unregisters BakerNode only if there no instances exist."""
+        """Unregisters BakerNode only if no instances exist."""
         nonlocal is_registered
 
         node_trees = it.chain(
@@ -1167,9 +1182,13 @@ if "_register_node" not in globals():
     _register_node, _unregister_node = _register_baker_node_factory()
 
 
+classes = (BKN_MT_add_baker_setup, BakerNodeSettingsPanel)
+_register, _unregister = bpy.utils.register_classes_factory(classes)
+
+
 def register():
     _register_node()
-    bpy.utils.register_class(BakerNodeSettingsPanel)
+    _register()
 
     _new_baker_node_btn_menu().append(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.append(bkn_node_context_menu_func)
@@ -1179,5 +1198,5 @@ def unregister():
     _new_baker_node_btn_menu().remove(add_bkn_node_menu_func)
     bpy.types.NODE_MT_context_menu.remove(bkn_node_context_menu_func)
 
-    bpy.utils.unregister_class(BakerNodeSettingsPanel)
+    _unregister()
     _unregister_node()
