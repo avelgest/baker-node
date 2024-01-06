@@ -1070,6 +1070,7 @@ def bkn_node_context_menu_func(self, context):
 
         layout.separator()
         layout.operator("node.bkn_masking_setup")
+        layout.operator("node.bkn_input_to_tangent_space")
 
 
 class BakerNodeSettingsPanel(bpy.types.Panel):

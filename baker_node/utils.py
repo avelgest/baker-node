@@ -270,6 +270,39 @@ def new_node_tree_socket(node_tree: NodeTree, name: str, in_out: str,
         return sockets.new(socket_type, name)
 
 
+def new_node(in_node_tree: bpy.types.NodeTree,
+             node_type: str,
+             name: Optional[str] = None,
+             inputs=None, **kwargs) -> bpy.types.Node:
+    """Convenience function for adding a node to in_node_tree.
+    Params:
+        in_node_tree: The node tree
+        node_type: The type of the new node (same as passed to nodes.new).
+        name: Try to set name of the new node to this value. (Optional)
+        inputs: A sequence of items, one for each input socket. If the
+            item is a socket then a link will be made otherwise it is
+            set as the input socket's default_value or ignored if it is
+            None. (Optional)
+        **kwargs: setattr(keyword, value) is called for each other keyword
+            arg.
+    Returns:
+        The new node.
+    """
+    node = in_node_tree.nodes.new(node_type)
+    if name:
+        kwargs["name"] = name
+
+    for attr, value in kwargs.items():
+        setattr(node, attr, value)
+    if inputs:
+        for soc_val, in_soc in zip(inputs, node.inputs):
+            if isinstance(soc_val, bpy.types.NodeSocket):
+                in_node_tree.links.new(in_soc, soc_val)
+            elif soc_val is not None:
+                in_soc.default_value = soc_val
+    return node
+
+
 def remove_node_tree_socket(node_tree: NodeTree,
                             socket: NodeTreeSocket) -> None:
     """Removes an interface socket from node_tree. Does nothing if the

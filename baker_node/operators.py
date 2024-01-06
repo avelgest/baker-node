@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import functools
 import itertools as it
 import typing
 
@@ -325,6 +326,101 @@ class BKN_OT_add_masking_setup(Operator):
         return {'FINISHED'}
 
 
+class BKN_OT_to_tangent_space_setup(Operator):
+    bl_idname = "node.bkn_input_to_tangent_space"
+    bl_label = "Input to Tangent Space"
+    bl_description = ("Adds a node to convert an Object Space input to "
+                      "Tangent space")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    NODE_GROUP_NAME = "Baker Object to Tangent Space"
+
+    @classmethod
+    def poll(cls, context):
+        baker_node = _get_active_baker_node(context)
+        if baker_node is not None and baker_node.target_type != 'VERTEX_MASK':
+            return True
+        return False
+
+    def execute(self, context):
+        node_group = bpy.data.node_groups.get(self.NODE_GROUP_NAME)
+        if node_group is None:
+            node_group = self.create_node_group()
+
+        baker_node = _get_active_baker_node(context)
+        color_input = baker_node.inputs['Color']
+        node_tree = baker_node.id_data
+
+        group_node = utils.new_node(node_tree, 'ShaderNodeGroup',
+                                    node_tree=node_group)
+        group_node.node_tree = node_group
+        utils.offset_node_from(group_node, baker_node, -250)
+
+        if color_input.is_linked:
+            linked_soc = color_input.links[0].from_socket
+            node_tree.links.new(group_node.inputs[0], linked_soc)
+
+        node_tree.links.new(color_input, group_node.outputs[0])
+
+        return {'FINISHED'}
+
+    def create_node_group(self) -> bpy.types.ShaderNodeGroup:
+        """Creates a node group that converts between object and
+        tangent space.
+        """
+        node_tree = bpy.data.node_groups.new(self.NODE_GROUP_NAME,
+                                             'ShaderNodeTree')
+
+        utils.new_node_tree_socket(node_tree, "Normal (OS)", 'INPUT',
+                                   "NodeSocketVector")
+        utils.new_node_tree_socket(node_tree, "Normal (TS)", 'OUTPUT',
+                                   "NodeSocketVector")
+
+        add_node = functools.partial(utils.new_node, node_tree)
+
+        group_in = add_node("NodeGroupInput", location=(-200, 220))
+        tangent = add_node("ShaderNodeTangent", "Tangent",
+                           direction_type='UV_MAP', axis='Z',
+                           location=(-200, 0))
+
+        normal = add_node("ShaderNodeTexCoord", "Normal",
+                          location=(-200, -90))
+        normal_soc = normal.outputs['Normal']
+
+        bitangent = add_node("ShaderNodeVectorMath", "Bitangent",
+                             operation='CROSS_PRODUCT', location=(-20, -50),
+                             inputs=[normal_soc, tangent.outputs[0]])
+
+        x_comp = add_node("ShaderNodeVectorMath", "T . N_os", hide=True,
+                          operation='DOT_PRODUCT', location=(200, 90),
+                          inputs=[group_in.outputs[0], tangent.outputs[0]]
+                          )
+        y_comp = add_node("ShaderNodeVectorMath", "B . N_os", hide=True,
+                          operation='DOT_PRODUCT', location=(200, 30),
+                          inputs=[group_in.outputs[0], bitangent.outputs[0]]
+                          )
+        z_comp = add_node("ShaderNodeVectorMath", "N . N_os", hide=True,
+                          operation='DOT_PRODUCT', location=(200, -30),
+                          inputs=[group_in.outputs[0], normal_soc]
+                          )
+
+        combine = add_node("ShaderNodeCombineXYZ", location=(400, 30),
+                           inputs=[node.outputs['Value']
+                                   for node in (x_comp, y_comp, z_comp)])
+
+        mult_add = add_node("ShaderNodeVectorMath", operation='MULTIPLY_ADD',
+                            location=(590, 120),
+                            inputs=[combine.outputs[0], (0.5, 0.5, 0.5),
+                                    (0.5, 0.5, 0.5)]
+                            )
+        add_node("NodeGroupOutput", location=[810.0, 120.0],
+                 inputs=[mult_add.outputs[0]])
+
+        for node in node_tree.nodes:
+            node.label = node.name
+        return node_tree
+
+
 classes = (BKN_OT_bake_button,
            BKN_OT_cancel_button,
            BKN_OT_bake_nodes,
@@ -332,6 +428,7 @@ classes = (BKN_OT_bake_button,
            BKN_OT_to_builtin,
            BKN_OT_refresh_preview,
            BKN_OT_add_masking_setup,
+           BKN_OT_to_tangent_space_setup,
            )
 
 register, unregister = bpy.utils.register_classes_factory(classes)
