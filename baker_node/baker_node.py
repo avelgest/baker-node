@@ -211,7 +211,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.target_image = None
         self.target_attribute = ""
 
-        self._refresh_sockets_enabled()
+        if bpy.app.version < (4, 0):
+            # Causes a crash when called here in Blender 4.0+ (issue #4),
+            # but doesn't seem to be necessary in Blender 4.0+ anyway.
+            self._refresh_sockets_enabled()
+
         self._invalidate_preview()
 
     def free(self):
