@@ -184,8 +184,8 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     @classmethod
     def _create_identifier(cls, node_tree) -> str:
         """Creates a unique identifier for this node."""
-        existing = (set(getattr(x, "identifier", "") for x in node_tree.nodes)
-                    if node_tree is not None else tuple())
+        existing = ({getattr(x, "identifier", "") for x in node_tree.nodes}
+                    if node_tree is not None else ())
         while True:
             identifier = f"{random.randint(1, 2**32):08x}"
             if identifier not in existing:
@@ -212,6 +212,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         self.target_attribute = ""
 
         self._refresh_sockets_enabled()
+        self._invalidate_preview()
 
     def free(self):
         if self.node_tree is not None:
@@ -446,8 +447,6 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if check_sockets:
             internal_tree.check_sockets(self)
 
-        sockets = {x.name: x for x in it.chain(self.inputs, self.outputs)}
-
         sockets_enabled = {
             "Color": True,
             "Alpha In": has_alpha_in,
@@ -457,11 +456,11 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             "Preview": has_preview_out
         }
 
-        for name, value in sockets_enabled.items():
-            socket = sockets.get(name)
-            if socket is not None:
-                socket.enabled = value
-                socket.hide = not value
+        for socket in it.chain(self.inputs, self.outputs):
+            enabled = sockets_enabled.get(socket.name)
+            if enabled is not None:
+                socket.enabled = enabled
+                socket.hide = not enabled
                 socket.hide_value = True
 
     def _refresh_targets(self) -> None:
@@ -1031,10 +1030,9 @@ def _new_baker_node_btn_menu() -> type:
     if hasattr(bpy.types, "NODE_MT_category_SH_NEW_OUTPUT"):
         # Blender < 4.0
         return bpy.types.NODE_MT_category_SH_NEW_OUTPUT
-    elif hasattr(bpy.types, "NODE_MT_category_shader_output"):
+    if hasattr(bpy.types, "NODE_MT_category_shader_output"):
         return bpy.types.NODE_MT_category_shader_output
-    else:
-        return bpy.types.NODE_MT_node
+    return bpy.types.NODE_MT_node
 
 
 class BKN_MT_add_baker_setup(bpy.types.Menu):
@@ -1085,7 +1083,7 @@ def bkn_node_context_menu_func(self, context):
             layout.operator("node.bkn_refresh_preview")
 
         layout.separator()
-        layout.menu("BKN_MT_add_node_setup")
+        layout.menu("BKN_MT_add_baker_setup")
 
 
 class BakerNodeSettingsPanel(bpy.types.Panel):
