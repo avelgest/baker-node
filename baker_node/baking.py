@@ -448,6 +448,9 @@ class _BakerNodeBaker:
             self._init_ma_output_node()
             self._set_bake_settings()
 
+            self._exit_stack.enter_context(
+                utils.filter_stdout("Baking map saved to internal image"))
+
             op_caller = utils.OpCaller(bpy.context,
                                        active=self._object,
                                        active_object=self._object,

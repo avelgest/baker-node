@@ -3,6 +3,7 @@
 import contextlib
 import functools
 import importlib
+import io
 import itertools as it
 import os
 import types
@@ -634,6 +635,23 @@ def apply_background(foreground, background) -> typing.Sequence:
 def image_has_alpha(image: bpy.types.Image) -> bool:
     """Returns whether image has an alpha channel."""
     return image.depth not in (24, 96)
+
+
+@contextlib.contextmanager
+def filter_stdout(*to_filter: str):
+    """Filter stdout removing all lines containing to_filter.
+    Context manager.
+    """
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        yield
+
+    for line in buffer.getvalue().split("\n")[:-1]:
+        for string in to_filter:
+            if string in line:
+                break
+        else:
+            print(line, file=sys.stdout)
 
 
 class OpCaller:
