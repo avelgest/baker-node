@@ -324,6 +324,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
             col.prop(self, "grayscale_method", text="")
 
     def draw_buttons(self, context, layout):
+        self._draw_buttons(context, layout)
+
+    def _draw_buttons(self, context, layout,
+                      hide_preview: bool = False) -> None:
         layout.context_pointer_set("baker_node", self)
 
         # Add spacing when there are no enabled output sockets
@@ -346,18 +350,19 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if self._bake_error_str:
             layout.label(icon='ERROR', text=self._bake_error_str)
 
-        self._draw_preview(layout)
+        if not hide_preview:
+            self._draw_preview(layout)
 
     def draw_buttons_ext(self, context, layout):
         """Draw node buttons in sidebar"""
         layout.context_pointer_set("baker_node", self)
 
-        self.draw_buttons(context, layout)
+        self._draw_buttons(context, layout, hide_preview=True)
         layout.separator(factor=2.0)
         BakerNodeSettingsPanel.draw_for(self, context, layout)
 
         layout.separator(factor=1.0)
-        layout.menu("BKN_MT_add_node_setup")
+        layout.menu("BKN_MT_add_baker_setup")
 
     def _draw_preview(self, layout) -> None:
         if not self._can_display_preview:
