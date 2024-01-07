@@ -43,6 +43,7 @@ class TestBakerNode(unittest.TestCase):
         "background_baking": False,
         "preview_background_bake": False,
         "preview_size": 4,
+        "preview_vertex_based": True,
         "use_numpy": False
     }
     # Dict to store the original values for keys in _override_prefs
@@ -766,3 +767,8 @@ class TestBakerNode(unittest.TestCase):
     def test_5_7_preview_bake_images(self):
         self.test_5_4_preview_bake('IMAGE_TEX_UV')
         self.test_5_5_preview_bake_alpha('IMAGE_TEX_UV')
+
+        prefs = preferences.get_prefs()
+        with _temp_set(prefs, "preview_vertex_based", False):
+            self.test_5_4_preview_bake('IMAGE_TEX_PLANE')
+            self.test_5_5_preview_bake_alpha('IMAGE_TEX_PLANE')

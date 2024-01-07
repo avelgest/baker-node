@@ -120,6 +120,14 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         min=1, soft_max=256
     )
 
+    preview_vertex_based: BoolProperty(
+        name="Use VA Based Previews",
+        description="Use vertex attributes to generate previews for the "
+                    "Image (Plane) bake type. Silghtly slower, but may be "
+                    "more stable",
+        default=False
+    )
+
     use_numpy: BoolProperty(
         name="Use NumPy",
         description="Allows the add-on to use NumPy for certain operations",
@@ -138,6 +146,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
         flow.prop(self, "preview_size")
         flow.prop(self, "preview_update_interval")
         flow.prop(self, "preview_samples")
+        flow.prop(self, "preview_vertex_based")
         col = layout.column()
         col.prop(self, "preview_background_bake")
         col.prop(self, "preview_cache")
