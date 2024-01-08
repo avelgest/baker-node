@@ -1110,12 +1110,12 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
         layout.prop(baker_node, "specific_bake_object")
 
         if baker_node.cycles_target_enum == 'IMAGE_TEXTURES':
+            if not baker_node.is_target_image_seq:
+                layout.prop(baker_node, "save_on_bake")
+
             image = baker_node.target_image
             if image is None:
                 return
-
-            if not baker_node.is_target_image_seq:
-                layout.prop(baker_node, "save_on_bake")
 
             layout.context_pointer_set("image", image)
             layout.separator(factor=1.0)
