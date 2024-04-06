@@ -15,7 +15,7 @@ import mathutils
 
 from ..baker_node import preferences
 from ..baker_node.baker_node import BakerNode
-from ..baker_node.utils import get_bake_queue
+from ..baker_node.utils import get_bake_queue, get_sculpt_mask
 
 supports_background_baking = preferences.supports_background_baking
 supports_color_attrs = preferences.supports_color_attributes
@@ -393,13 +393,13 @@ class TestBakerNode(unittest.TestCase):
         self.assertFalse(baker_node.bake_in_progress)
 
         # Check that mesh now has a vertex paint mask
-        self.assertTrue(mesh.vertex_paint_masks)
+        self.assertTrue(get_sculpt_mask(mesh))
 
         # Check that the temp color_attribute used during baking
         # has been deleted.
         self.assertEqual(len(mesh.color_attributes), num_col_attrs)
 
-        mask = mesh.vertex_paint_masks[0]
+        mask = get_sculpt_mask(mesh)
         for x in mask.data:
             self.assertAlmostEqual(x.value, 0.5, delta=0.001)
 
@@ -409,7 +409,7 @@ class TestBakerNode(unittest.TestCase):
 
         # Should have multiplied mask by value_node's value (0.5)
         correct = 0.5 / 2.0
-        for x in mesh.vertex_paint_masks[0].data:
+        for x in get_sculpt_mask(mesh).data:
             self.assertAlmostEqual(x.value, correct, delta=0.001)
 
     def test_3_5_alpha_bake_img(self):
@@ -531,7 +531,7 @@ class TestBakerNode(unittest.TestCase):
         baker_node.grayscale_method = method
         baker_node.schedule_bake()
         mesh = self.obj.data
-        for x in mesh.vertex_paint_masks[0].data:
+        for x in get_sculpt_mask(mesh).data:
             self.assertAlmostEqual(x.value, correct, delta=delta)
 
     @unittest.skipUnless(supports_color_attrs, "No Color Attributes support")

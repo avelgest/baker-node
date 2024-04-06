@@ -68,7 +68,7 @@ class TestUtils(unittest.TestCase):
             color_attr.data[x].color = (x/4, 0, 0, 1)
 
         utils.copy_color_attr_to_mask(color_attr, None)
-        mask = mesh.vertex_paint_masks[0]
+        mask = utils.get_sculpt_mask(mesh)
 
         for x in range(4):
             self.assertAlmostEqual(mask.data[x].value, x/4, delta=0.001)
@@ -81,7 +81,7 @@ class TestUtils(unittest.TestCase):
 
         utils.copy_color_attr_to_mask(color_attr, None)
         # Need to retrieve the mask again after adding new arribute
-        mask = mesh.vertex_paint_masks[0]
+        mask = utils.get_sculpt_mask(mesh)
         for x in range(4):
             self.assertAlmostEqual(mask.data[x].value, x/4, delta=1/256)
         mesh.color_attributes.remove(color_attr)

@@ -26,6 +26,9 @@ _NOT_FOUND = object()
 NodeTreeSocket = Union["bpy.types.NodeSocketInterface",
                        "bpy.types.NodeTreeInterfaceSocket"]
 
+SculptMaskType = Union["bpy.types.MeshPaintMaskLayer",
+                       "bpy.types.FloatAttribute"]
+
 
 def get_bake_queue():
     return bpy.context.window_manager.bkn_bake_queue
@@ -353,11 +356,15 @@ def can_write_id_props(id_data: bpy.types.ID) -> bool:
     return True
 
 
-def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> bpy.types.MeshPaintMaskLayer:
+def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> SculptMaskType:
     """Ensures that mesh has a sculpt mask (vertex paint mask).
     This may invalidate any Python variables that refer to mesh data
-    (e.g. color attributes). Returns the meshes sculpt mask.
+    (e.g. color attributes). Returns the mesh's sculpt mask.
     """
+    if hasattr(mesh, "vertex_paint_mask_ensure"):
+        # For Blender 4.1+
+        return mesh.vertex_paint_mask_ensure()
+
     if mesh.vertex_paint_masks:
         return mesh.vertex_paint_masks[0]
 
@@ -367,6 +374,13 @@ def ensure_sculpt_mask(mesh: bpy.types.Mesh) -> bpy.types.MeshPaintMaskLayer:
     bm.to_mesh(mesh)
     bm.free()
     return mesh.vertex_paint_masks[0]
+
+
+def get_sculpt_mask(mesh: bpy.types.Mesh) -> Optional[SculptMaskType]:
+    """Returns the mesh's sculpt mask."""
+    # vertex_paint_mask for Blender 4.1+ vertex_paint_masks[0] otherwise.
+    return (mesh.vertex_paint_mask if hasattr(mesh, "vertex_paint_mask")
+            else mesh.vertex_paint_masks[0])
 
 
 def ensure_name_deleted(coll: bpy.types.bpy_prop_collection,
@@ -394,7 +408,7 @@ def copy_color_attr_to_mask(color_attr: bpy.types.Attribute,
         raise TypeError("Only vertex color attributes can be converted to "
                         "masks.")
 
-    if not mesh.vertex_paint_masks:
+    if get_sculpt_mask(mesh) is None:
         raise RuntimeError("Mesh has no vertex paint masks (sculpt mask)")
 
     from_data = color_attr.data
@@ -413,7 +427,7 @@ def copy_color_attr_to_mask(color_attr: bpy.types.Attribute,
     if np:
         arr = np.ascontiguousarray(arr, dtype="f")
 
-    mask = mesh.vertex_paint_masks[0]
+    mask = get_sculpt_mask(mesh)
 
     if op is not None:
         if np:
