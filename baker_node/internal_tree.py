@@ -27,6 +27,8 @@ class NodeNames:
     color_alpha_shader = "Baker Node Color Alpha Shader"
     # Math Node (1 - alpha) between alpha_shader and alpha input
     alpha_invert = "Baker Node Alpha Invert"
+    # Math Node maximum(alpha, 1e-4). Minimum alpha value.
+    alpha_min = "Baker Node Alpha Minimum"
 
     baked_img_uv = "Baker Node Baked Image UV"
     baked_img = "Baker Node Baked Image"
@@ -96,7 +98,7 @@ class _TreeBuilder:
 
         separate_rgb = nodes.new("ShaderNodeSeparateRGB")
         separate_rgb.name = NodeNames.grayscale_separate_rgb
-        separate_rgb.location = (50, -180)
+        separate_rgb.location = (-150, -180)
         separate_rgb.hide = True
 
         luminance = nodes.new("ShaderNodeRGBToBW")
@@ -153,7 +155,19 @@ class _TreeBuilder:
         alpha_invert.use_clamp = True
         alpha_invert.inputs[0].default_value = 1.0
 
+        # Minimum alpha. Prevents color data being optimized away by Cycles
+        # when alpha <= 0
+        alpha_min = nodes.new("ShaderNodeMath")
+        alpha_min.name = NodeNames.alpha_min
+        alpha_min.label = "Minimum Alpha"
+        alpha_min.location = alpha_invert.location
+        alpha_min.location.x -= 200
+
+        alpha_min.operation = 'MAXIMUM'
+        alpha_min.inputs[1].default_value = 1e-4
+
         links.new(alpha_shader.inputs[0], alpha_invert.outputs[0])
+        links.new(alpha_invert.inputs[1], alpha_min.outputs[0])
         links.new(color_alpha_shader.inputs[0], color_shader.outputs[0])
         links.new(color_alpha_shader.inputs[1], alpha_shader.outputs[0])
 
@@ -281,6 +295,7 @@ class _TreeBuilder:
 
         group_input = nodes.new("NodeGroupInput")
         group_input.name = NodeNames.group_input
+        group_input.location.x -= 200
 
         group_output = nodes.new("NodeGroupOutput")
         group_output.name = NodeNames.group_output
@@ -319,7 +334,7 @@ class _TreeBuilder:
 
         links.new(nodes[NodeNames.emission_shader].inputs[0],
                   group_input.outputs["Color"])
-        links.new(nodes[NodeNames.alpha_invert].inputs[1],
+        links.new(nodes[NodeNames.alpha_min].inputs[0],
                   group_input.outputs["Alpha In"])
 
         if baker_node.target_type in ('IMAGE_TEX_UV', 'IMAGE_TEX_PLANE'):
