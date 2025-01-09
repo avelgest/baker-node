@@ -105,6 +105,13 @@ class TestBakerNode(unittest.TestCase):
     def tearDown(self):
         self.node_tree.nodes.clear()
 
+        # Delete any materials added to obj
+        for ma in [slot.material for slot in self.obj.material_slots]:
+            if ma != self.ma:
+                bpy.data.materials.remove(ma)
+        self.obj.material_slots[0].material = self.ma
+        self.obj.active_material = self.ma
+
     @property
     def attr_target_1(self):
         return self.obj.data.attributes["test_attr_1"]
@@ -772,3 +779,43 @@ class TestBakerNode(unittest.TestCase):
         with _temp_set(prefs, "preview_vertex_based", False):
             self.test_5_4_preview_bake('IMAGE_TEX_PLANE')
             self.test_5_5_preview_bake_alpha('IMAGE_TEX_PLANE')
+
+    def test_6_1_multiple_mat_img(self):
+        """Tests baking to image for an object with multiple materials."""
+        img_target = self.img_target
+        img_target.pixels.foreach_set(
+            [1.0 for _ in range(len(img_target.pixels))])
+
+        # Create the image that should NOT be baked to
+        wrong_img = bpy.data.images.new("test_6_1_multiple_mat_img_wrong_img",
+                                        4, 4, alpha=False)
+        wrong_img.pixels.foreach_set(
+            [1.0 for _ in range(len(wrong_img.pixels))])
+
+        # Set up the second material
+        ma2 = bpy.data.materials.new("test_6_1_multiple_mat_img_ma2")
+        ma2.use_nodes = True
+
+        if len(self.obj.material_slots) < 2:
+            self.obj.data.materials.append(ma2)
+        else:
+            self.obj.material_slots[1].material = ma2
+
+        ma2.node_tree.nodes.new("ShaderNodeOutputMaterial")
+        ma2_img_node = ma2.node_tree.nodes.new("ShaderNodeTexImage")
+        ma2_img_node.image = wrong_img
+
+        # Set up the first material (self.ma)
+        self.node_tree.nodes.new("ShaderNodeOutputMaterial")
+        baker_node = self._new_baker_node("multiple_mat_img", self.img_target)
+        baker_node.inputs[0].default_value = (0.5, 0.5, 0.5, 1.0)
+
+        baker_node.schedule_bake()
+
+        # Check that img_target has been baked to
+        for x in self._get_pixels_rgb(self.img_target):
+            self.assertAlmostEqual(x, 0.5, delta=0.01)
+
+        # Check that wrong_img has NOT been baked to
+        for x in wrong_img.pixels:
+            self.assertAlmostEqual(x, 1.0, delta=0.01)

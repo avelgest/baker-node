@@ -417,6 +417,8 @@ class _BakerNodeBaker:
         target_node.select = True
         target_tree.nodes.active = target_node
 
+        self._create_dummy_image_nodes()
+
         get_target_tree = utils.safe_node_tree_getter(target_tree)
 
         def clean_up():
@@ -430,6 +432,43 @@ class _BakerNodeBaker:
                 if old_active is not None:
                     target_tree.nodes.active = old_active
         self._exit_stack.callback(clean_up)
+
+    def _create_dummy_image_nodes(self) -> None:
+        """Create dummy image nodes for any materials in the object's
+        other material slots to prevent them from baking. (See issue #10)
+        """
+
+        target_ma = self._target_material
+
+        def clean_up_factory(node_tree, node):
+            get_tree = utils.safe_node_tree_getter(node_tree)
+            node_name = node.name
+
+            def clean_up():
+                node_tree = get_tree()
+                if node_tree is not None:
+                    node = node_tree.nodes.get(node_name)
+                    if node is not None:
+                        node_tree.nodes.remove(node)
+            return clean_up
+
+        for ma in [x.material for x in self._object.material_slots]:
+            # Ignore the material being currently baked and any without
+            # Image Texture nodes.
+            if (ma is None
+                    or ma.node_tree is None
+                    or ma == target_ma
+                    or not utils.get_nodes_by_type(ma.node_tree.nodes,
+                                                   "ShaderNodeTexImage",
+                                                   recursive=True)):
+                continue
+
+            dummy = ma.node_tree.nodes.new("ShaderNodeTexImage")
+            dummy.name = "baker_dummy_image_node"
+            dummy.hide = True
+            ma.node_tree.nodes.active = dummy
+
+            self._exit_stack.callback(clean_up_factory(ma.node_tree, dummy))
 
     def bake(self, immediate: bool = False) -> None:
         """Perform the bake. If immediate is False then the bake will
@@ -669,29 +708,36 @@ class _BakerNodeBaker:
         return self.baker_node.samples
 
     @functools.cached_property
-    def _target_tree(self) -> bpy.types.ShaderNodeTree:
-        """Node tree in which to place the image node that should be
-        selected when baking.
+    def _target_material(self) -> Optional[bpy.types.Material]:
+        """Returns the material containing the Baker node or None if
+        no such material can be found.
         """
-        # Tree containing the Baker
-        baker_tree = self.baker_node.id_data
-
         if self._object is None:
             warnings.warn("Expected self._object to have a value")
-            return baker_tree
+            return None
 
         materials = [x.material for x in self._object.material_slots
                      if x.material is not None]
 
         if len(materials) == 1:
-            return materials[0].node_tree
-        if len(materials) > 1:
-            ma = utils.get_node_tree_ma(baker_tree, [self._object],
-                                        search_groups=True)
-            if ma is not None:
-                return ma.node_tree
+            return materials[0]
 
-        return baker_tree
+        # FIXME This may be incorrect if the Baker is inside a node group
+        # used by two materials on the same object.
+        return utils.get_node_tree_ma(self.baker_node.id_data, [self._object],
+                                      search_groups=True)
+
+    @property
+    def _target_tree(self) -> bpy.types.ShaderNodeTree:
+        """Node tree in which to place the image node that should be
+        selected when baking.
+        """
+        target_ma = self._target_material
+        if target_ma is not None and target_ma.node_tree is not None:
+            return target_ma.node_tree
+
+        # Tree containing the Baker
+        return self.baker_node.id_data
 
     @property
     def _use_external_ma_node(self) -> bool:
