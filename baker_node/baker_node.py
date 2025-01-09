@@ -1122,10 +1122,18 @@ class BakerNodeSettingsPanel(bpy.types.Panel):
             layout.label(text="Image Settings")
             layout.prop(image, "source")
 
-            if baker_node.is_target_image_seq:
+            if image.source == 'FILE':
+                layout.label(text="Single File")
+                col = layout.column(align=False)
+                col.alignment = 'RIGHT'
+                col.prop(image, "alpha_mode")
+
+            elif image.source == 'SEQUENCE':
                 image_user = baker_node.image_user
                 layout.label(text="Image Sequence")
-                col = layout.column(align=True)
+                col = layout.column(align=False)
+                col.alignment = 'RIGHT'
+                col.prop(image, "alpha_mode")
                 col.prop(image_user, "use_auto_refresh")
                 col.prop(image_user, "use_cyclic")
 
