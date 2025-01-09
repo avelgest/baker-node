@@ -466,6 +466,7 @@ class _BakerNodeBaker:
             dummy = ma.node_tree.nodes.new("ShaderNodeTexImage")
             dummy.name = "baker_dummy_image_node"
             dummy.hide = True
+            dummy.select = True
             ma.node_tree.nodes.active = dummy
 
             self._exit_stack.callback(clean_up_factory(ma.node_tree, dummy))

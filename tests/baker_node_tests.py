@@ -804,6 +804,8 @@ class TestBakerNode(unittest.TestCase):
         ma2.node_tree.nodes.new("ShaderNodeOutputMaterial")
         ma2_img_node = ma2.node_tree.nodes.new("ShaderNodeTexImage")
         ma2_img_node.image = wrong_img
+        ma2_img_node.select = True
+        ma2.node_tree.nodes.active = ma2_img_node
 
         # Set up the first material (self.ma)
         self.node_tree.nodes.new("ShaderNodeOutputMaterial")
