@@ -96,7 +96,10 @@ class _TreeBuilder:
         nodes = self.nodes
         links = self.links
 
-        separate_rgb = nodes.new("ShaderNodeSeparateRGB")
+        if bpy.app.version[0] >= 4:
+            separate_rgb = nodes.new("ShaderNodeSeparateColor")
+        else:
+            separate_rgb = nodes.new("ShaderNodeSeparateRGB")
         separate_rgb.name = NodeNames.grayscale_separate_rgb
         separate_rgb.location = (-150, -180)
         separate_rgb.hide = True
