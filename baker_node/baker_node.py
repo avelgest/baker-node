@@ -949,6 +949,9 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
         if not isinstance(value, bytes):
             raise TypeError("Expected a bytes value")
         try:
+            # Any values of \x00 will cause the hash to be truncated
+            # when stored. So replace with \x01
+            value = value.replace(b'\x00', b'\x01')
             self["last_bake_hash"] = value
         except AttributeError as e:
             warnings.warn(f"Unable to set last_bake_hash: {e}")
@@ -962,6 +965,10 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
     def last_preview_hash(self, value: bytes):
         if not isinstance(value, bytes):
             raise TypeError("Expected a bytes value")
+        # Any values of \x00 will cause the hash to be truncated
+        # when stored. So replace with \x01
+        value = value.replace(b'\x00', b'\x01')
+
         self["last_preview_hash"] = value
 
     @property
