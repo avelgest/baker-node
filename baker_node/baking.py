@@ -579,8 +579,6 @@ class _BakerNodeBaker:
             # tests with background baking
             render_props.engine = 'CYCLES'
 
-        render_props.use_bake_multires = False
-
         if (prefs.cycles_device != 'DEFAULT'
                 and cycles_props.device != prefs.cycles_device):
             cycles_props.device = prefs.cycles_device
