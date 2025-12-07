@@ -5,11 +5,12 @@ bl_info = {
     "description": "Adds a node to the shader editor that bakes its "
                    "input with a single click",
     "author": "Avelgest",
-    "version": (0, 8, 4),
+    "version": (0, 8, 5),
     "blender": (3, 0, 0),
     "category": "Node",
     "location": "Shader Editor > Add > Output > Baker",
-    "doc_url": "https://github.com/avelgest/baker-node/wiki"
+    "doc_url": "https://github.com/avelgest/baker-node/wiki",
+    "tracker_url": "https://github.com/avelgest/baker-node/issues"
 }
 
 if "baker_node" in globals():
