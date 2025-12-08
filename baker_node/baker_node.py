@@ -425,6 +425,7 @@ class BakerNode(bpy.types.ShaderNodeCustomGroup):
                 return
 
             self.last_preview_hash = current_hash
+            current_hash = self.last_preview_hash
             frame = bpy.context.scene.frame_current
 
             # Try loading a cached preview
