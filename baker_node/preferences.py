@@ -6,7 +6,7 @@ from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty
 
 from .. import __package__ as package_name
 
-supports_background_baking = bpy.app.version >= (3, 3)
+background_baking_supported = bpy.app.version >= (3, 3)
 supports_color_attributes = ("color_attributes"
                              in bpy.types.Mesh.bl_rna.properties)
 node_tree_interfaces = bpy.app.version >= (4,)
@@ -58,7 +58,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
     background_baking: BoolProperty(
         name="Bake in Background",
         description="Perform baking in the background if supported",
-        default=supports_background_baking,
+        default=background_baking_supported,
         update=lambda self, _: self._background_baking_update()
     )
 
@@ -205,7 +205,7 @@ class BakerNodePrefs(bpy.types.AddonPreferences):
 
     @property
     def supports_background_baking(self) -> bool:
-        return supports_background_baking
+        return background_baking_supported
 
     @property
     def supports_color_attributes(self) -> bool:
